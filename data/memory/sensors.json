@@ -1,0 +1,29 @@
+[
+  {
+    "id": "esp32-temp-1",
+    "name": "Woonkamer",
+    "type": "temperature",
+    "value": 21.5,
+    "unit": "°C",
+    "online": true,
+    "lastUpdate": "2026-06-13T10:00:00.000Z"
+  },
+  {
+    "id": "esp32-hum-1",
+    "name": "Woonkamer",
+    "type": "humidity",
+    "value": 45,
+    "unit": "%",
+    "online": true,
+    "lastUpdate": "2026-06-13T10:00:00.000Z"
+  },
+  {
+    "id": "esp32-status-1",
+    "name": "ESP32 Module #1",
+    "type": "status",
+    "value": "Online",
+    "unit": "",
+    "online": true,
+    "lastUpdate": "2026-06-13T10:00:00.000Z"
+  }
+]

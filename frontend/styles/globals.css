@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply overflow-x-hidden;
+  }
+
+  * {
+    @apply border-nova-border;
+  }
+
+  body {
+    @apply bg-nova-black text-gray-100 font-sans antialiased overflow-x-hidden;
+    overflow-y: hidden;
+  }
+
+  #root {
+    @apply h-[100dvh] w-full max-w-[100vw] overflow-hidden;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-nova-dark;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-nova-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-nova-muted;
+  }
+}
+
+@layer components {
+  .nova-panel {
+    @apply bg-nova-panel border border-nova-border rounded-xl;
+  }
+
+  .nova-btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .nova-btn-primary {
+    @apply nova-btn bg-nova-blue/10 text-nova-blue border border-nova-blue/30
+           hover:bg-nova-blue/20 hover:shadow-neon;
+  }
+
+  .nova-btn-ghost {
+    @apply nova-btn text-gray-400 hover:text-nova-cyan hover:bg-nova-border/50;
+  }
+
+  .nova-input {
+    @apply w-full bg-nova-dark border border-nova-border rounded-lg px-4 py-2.5
+           text-gray-100 placeholder-gray-500
+           focus:outline-none focus:border-nova-blue/50 focus:ring-1 focus:ring-nova-blue/30
+           transition-colors;
+  }
+
+  .nova-card {
+    @apply nova-panel p-5 hover:border-nova-blue/20 transition-colors;
+  }
+}

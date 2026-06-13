@@ -1,0 +1,10 @@
+node_modules
+dist-electron
+exports
+firmware
+electron
+backend
+scripts
+data
+*.AppImage
+*.deb

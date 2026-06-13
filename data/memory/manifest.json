@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "updatedAt": "2026-06-13T12:00:00.000Z",
+  "sections": {
+    "notes": "notes/notes.json",
+    "tasks": "notes/tasks.json",
+    "preferences": "settings/settings.json",
+    "episodic": "memory/conversations.json",
+    "semantic": "memory/semantic.json"
+  }
+}

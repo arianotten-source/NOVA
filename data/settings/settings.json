@@ -1,0 +1,8 @@
+{
+  "userName": "Gebruiker",
+  "language": "nl",
+  "theme": "dark",
+  "aiProvider": "none",
+  "aiModel": "local",
+  "voiceEnabled": true
+}

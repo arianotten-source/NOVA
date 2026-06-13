@@ -1,0 +1,21 @@
+{
+  "devices": [
+    {
+      "deviceId": "livingroom01",
+      "name": "Woonkamer",
+      "temperature": 22.4,
+      "humidity": 48,
+      "timestamp": 1780000000,
+      "lastUpdate": "2026-06-13T12:00:00.000Z"
+    },
+    {
+      "deviceId": "bedroom01",
+      "name": "Slaapkamer",
+      "temperature": 19.1,
+      "humidity": 55,
+      "timestamp": 1779996400,
+      "lastUpdate": "2026-06-13T11:55:00.000Z"
+    }
+  ],
+  "alerts": []
+}
