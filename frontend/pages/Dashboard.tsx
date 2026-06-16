@@ -1,58 +1,87 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { StickyNote, CheckSquare, Calendar, MessageSquare } from 'lucide-react';
-import { useSettings } from '@/hooks/useSettings';
-import { useSystemStats } from '@/hooks/useSystemStats';
-import { SystemStatsWidget } from '@/widgets/SystemStatsWidget';
-import SensorOverviewWidget from '@/widgets/SensorOverviewWidget';
+import { useDashboardData } from '@/hooks/useDashboardData';
+import { loadNovaLayoutMode, NOVA_LAYOUT_MODES, type NovaLayoutMode } from '@/lib/novaLayoutPrefs';
 import { formatDate, formatTime } from '@/lib/utils';
+import NovaLayoutControls from '@/components/dashboard/NovaLayoutControls';
+import NovaOverviewSection from '@/components/dashboard/NovaOverviewSection';
+import NovaIntelligenceSection from '@/components/dashboard/NovaIntelligenceSection';
+import NovaTodayAgenda from '@/components/dashboard/NovaTodayAgenda';
+import NovaQuickLists from '@/components/dashboard/NovaQuickLists';
+import NovaAdvancedSections from '@/components/dashboard/NovaAdvancedSections';
 
 const shortcuts = [
-  { to: '/notes', icon: StickyNote, label: 'Nieuwe notitie', color: 'text-nova-blue' },
-  { to: '/tasks', icon: CheckSquare, label: 'Nieuwe taak', color: 'text-nova-cyan' },
-  { to: '/agenda', icon: Calendar, label: 'Nieuwe afspraak', color: 'text-purple-400' },
-  { to: '/chat', icon: MessageSquare, label: 'Open chat', color: 'text-green-400' },
+  { to: '/notes', icon: StickyNote, label: 'Notitie', color: 'text-nova-blue' },
+  { to: '/tasks', icon: CheckSquare, label: 'Taak', color: 'text-nova-cyan' },
+  { to: '/agenda', icon: Calendar, label: 'Afspraak', color: 'text-purple-400' },
+  { to: '/chat', icon: MessageSquare, label: 'Chat', color: 'text-green-400' },
 ];
 
 export default function Dashboard() {
-  const { settings } = useSettings();
-  const stats = useSystemStats();
+  const [layoutMode, setLayoutMode] = useState<NovaLayoutMode>(loadNovaLayoutMode);
+  const data = useDashboardData();
   const now = new Date();
+
+  const showIntelligence = layoutMode !== NOVA_LAYOUT_MODES.COMPACT;
+  const showQuickLists = layoutMode === NOVA_LAYOUT_MODES.STANDARD;
+  const showAdvanced = layoutMode === NOVA_LAYOUT_MODES.ADVANCED;
+
+  if (!data.loaded) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <p className="text-nova-muted text-sm">Dashboard laden...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8 w-full min-w-0">
-        <header className="text-center space-y-1">
-          <p className="text-4xl font-light text-nova-cyan font-mono">{formatTime(now)}</p>
-          <p className="text-nova-muted capitalize">{formatDate(now)}</p>
-        </header>
+      <div className="max-w-4xl mx-auto space-y-3 w-full min-w-0">
+        <NovaLayoutControls layoutMode={layoutMode} onLayoutModeChange={setLayoutMode} />
 
-        <section className="text-center py-6">
-          <h2 className="text-2xl font-semibold text-gray-100">
-            Welkom terug, <span className="text-nova-blue">{settings.userName}</span>
-          </h2>
-          <p className="text-nova-muted mt-2 text-sm">Je persoonlijke AI-assistent staat klaar.</p>
-        </section>
+        <NovaOverviewSection
+          overview={data.overview}
+          userName={data.settings.userName}
+          timeLabel={formatTime(now)}
+          dateLabel={formatDate(now)}
+        />
 
-        <section>
-          <h3 className="text-sm font-medium text-nova-muted uppercase tracking-wider mb-4">Snelkoppelingen</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {shortcuts.map(({ to, icon: Icon, label, color }) => (
-              <Link key={to} to={to} className="nova-card flex flex-col items-center gap-3 py-6 group">
-                <div className="w-12 h-12 rounded-xl bg-nova-dark border border-nova-border flex items-center justify-center group-hover:border-nova-blue/30 group-hover:shadow-neon transition-all">
-                  <Icon className={`w-6 h-6 ${color}`} />
-                </div>
-                <span className="text-sm text-gray-300">{label}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
+        {showIntelligence ? <NovaIntelligenceSection intelligence={data.intelligence} /> : null}
 
-        <SensorOverviewWidget />
+        <NovaTodayAgenda events={data.todayEvents} />
 
-        <section className="nova-panel p-6">
-          <h3 className="text-sm font-medium text-nova-muted uppercase tracking-wider mb-5">Systeemstatus</h3>
-          <SystemStatsWidget cpu={stats.cpu} ram={stats.ram} storage={stats.storage} />
-        </section>
+        {showQuickLists ? (
+          <NovaQuickLists notes={data.recentNotes} tasks={data.openTasks} />
+        ) : null}
+
+        {layoutMode === NOVA_LAYOUT_MODES.COMPACT ? (
+          <section className="nova-panel p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-nova-muted mb-2">
+              Snelkoppelingen
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {shortcuts.map(({ to, icon: Icon, label, color }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  className="flex flex-col items-center justify-center gap-2 min-h-[72px] rounded-xl bg-nova-dark border border-nova-border hover:border-nova-blue/30 transition-colors touch-manipulation"
+                >
+                  <Icon className={`w-5 h-5 ${color}`} />
+                  <span className="text-xs text-gray-300">{label}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {showAdvanced ? (
+          <NovaAdvancedSections
+            conversations={data.recentConversations}
+            stats={data.stats}
+            settings={data.settings}
+          />
+        ) : null}
       </div>
     </div>
   );
