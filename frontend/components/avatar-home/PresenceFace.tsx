@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { motion, useSpring } from 'framer-motion';
+import { useClientOnly } from '@/hooks/useClientOnly';
+import { createSafeRafLoop } from '@/lib/safeRaf';
 import type { RenderPose } from '@/lib/avatar/engine/types';
 import type { AvatarStateId } from '@/lib/avatar/engine/types';
+import PresenceFaceStatic from './PresenceFaceStatic';
 
 interface PresenceFaceProps {
   pose: RenderPose;
@@ -11,8 +13,15 @@ interface PresenceFaceProps {
   faceDetected: boolean;
 }
 
-/** Headless fullscreen face — only brows, eyes, mouth. No circle, no head. */
-export default function PresenceFace({
+export default function PresenceFace(props: PresenceFaceProps) {
+  const client = useClientOnly();
+  if (!client) {
+    return <PresenceFaceStatic pose={props.pose} state={props.state} />;
+  }
+  return <PresenceFaceAnimated {...props} />;
+}
+
+function PresenceFaceAnimated({
   pose,
   state,
   faceX,
@@ -26,8 +35,7 @@ export default function PresenceFace({
   const micro = pose.microAnim;
 
   useEffect(() => {
-    let raf = 0;
-    const tick = () => {
+    const stop = createSafeRafLoop(() => {
       search.current += 0.015;
       const mx = micro?.lookX ?? 0;
       const my = micro?.lookY ?? 0;
@@ -40,19 +48,9 @@ export default function PresenceFace({
       sx.current += (tx - sx.current) * 0.07;
       sy.current += (ty - sy.current) * 0.07;
       setGaze({ x: sx.current, y: sy.current });
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    });
+    return stop;
   }, [faceDetected, faceX, faceY, micro?.lookX, micro?.lookY]);
-
-  const breathe = useSpring(1, { stiffness: 35, damping: 14 });
-  useEffect(() => {
-    const id = setInterval(() => {
-      breathe.set(1 + Math.sin(Date.now() / 2200) * 0.008 + (micro?.floatY ?? 0) * 0.001);
-    }, 32);
-    return () => clearInterval(id);
-  }, [breathe, micro?.floatY]);
 
   const smile = Math.max(-0.4, Math.min(1, pose.smileAmount));
   const mouthOpen = pose.mouthOpen;
@@ -68,12 +66,21 @@ export default function PresenceFace({
   const eyeOpenR = micro?.eyeOpenRight ?? 1;
   const stroke = '#5eead4';
   const glow = 0.1 + pose.glowPulse * 0.1 + (micro?.glowIntensity ?? 0.12) * 0.5;
+  const speaking = mouthOpen > 0.12 || pose.activeAnimation === 'speaking';
+
+  const mouthD =
+    mouthOpen > 0.18 || pose.activeAnimation === 'speaking'
+      ? `M ${50 - 8} ${76} a 8 ${5 + mouthOpen * 8} 0 1 0 16 0 a 8 ${5 + mouthOpen * 8} 0 1 0 -16 0`
+      : surprised
+        ? `M ${42} ${76} a 8 8 0 1 0 16 0 a 8 8 0 1 0 -16 0`
+        : smile > 0.3
+          ? `M ${36} ${77} Q 50 ${84 + smile * 4} 64 ${77}`
+          : smile < -0.1
+            ? `M ${38} ${82} Q 50 ${74} 62 ${82}`
+            : `M ${40} ${78} L 60 ${78}`;
 
   return (
-    <motion.div
-      className="absolute inset-0 flex items-center justify-center pointer-events-none"
-      style={{ scale: breathe }}
-    >
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none avatar-breathe">
       <svg
         viewBox="0 0 100 100"
         className="w-full h-full"
@@ -81,7 +88,6 @@ export default function PresenceFace({
         style={{ filter: `drop-shadow(0 0 ${12 + pose.glowPulse * 16}px rgba(94, 234, 212, ${glow}))` }}
         aria-label="N.O.V.A."
       >
-        {/* Brows */}
         <line
           x1="22"
           y1={28 + browRaise * -3 + (micro?.browLeftY ?? 0) * 0.15 + (curious ? -2 : 0)}
@@ -133,32 +139,15 @@ export default function PresenceFace({
           );
         })}
 
-        {/* Mouth — bottom center */}
-        <motion.path
-          d={
-            mouthOpen > 0.18 || pose.activeAnimation === 'speaking'
-              ? `M ${50 - 8} ${76} a 8 ${5 + mouthOpen * 8} 0 1 0 16 0 a 8 ${5 + mouthOpen * 8} 0 1 0 -16 0`
-              : surprised
-                ? `M ${42} ${76} a 8 8 0 1 0 16 0 a 8 8 0 1 0 -16 0`
-                : smile > 0.3
-                  ? `M ${36} ${77} Q 50 ${84 + smile * 4} 64 ${77}`
-                  : smile < -0.1
-                    ? `M ${38} ${82} Q 50 ${74} 62 ${82}`
-                    : `M ${40} ${78} L 60 ${78}`
-          }
+        <path
+          d={mouthD}
           fill={mouthOpen > 0.2 ? 'rgba(8,15,26,0.92)' : 'none'}
           stroke={stroke}
           strokeWidth="1.2"
           strokeLinecap="round"
-          animate={
-            mouthOpen > 0.12 || pose.activeAnimation === 'speaking'
-              ? { scaleY: [1, 1.1, 0.92, 1.06, 1] }
-              : {}
-          }
-          transition={{ duration: 0.32, repeat: Infinity, ease: 'easeInOut' }}
-          style={{ transformOrigin: '50px 78px' }}
+          className={speaking ? 'avatar-anim-talk' : undefined}
         />
       </svg>
-    </motion.div>
+    </div>
   );
 }

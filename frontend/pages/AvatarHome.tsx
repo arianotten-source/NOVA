@@ -1,36 +1,34 @@
-import { useAvatar } from '@/context/AvatarContext';
+import { useAvatar, useAvatarPoseFallback } from '@/context/AvatarContext';
 import HomeBackground from '@/components/avatar-home/HomeBackground';
 import HomeCameraPrompt from '@/components/avatar-home/HomeCameraPrompt';
+import HomeLoading from '@/components/avatar-home/HomeLoading';
 import HomeMenu from '@/components/avatar-home/HomeMenu';
 import HomeMic from '@/components/avatar-home/HomeMic';
 import HomeWhisper from '@/components/avatar-home/HomeWhisper';
 import PresenceFace from '@/components/avatar-home/PresenceFace';
+import PresenceFaceStatic from '@/components/avatar-home/PresenceFaceStatic';
+import EngineErrorBoundary from '@/components/errors/EngineErrorBoundary';
 
-/**
- * N.O.V.A. home — fullscreen living avatar.
- * No dashboard, cards, bottom nav, or round head.
- */
 export default function AvatarHome() {
-  const { engineSnapshot, cameraSignals, status } = useAvatar();
-  const pose = engineSnapshot?.pose;
+  const { engineSnapshot, cameraSignals, status, loading } = useAvatar();
+  const fallbackPose = useAvatarPoseFallback('neutraal');
+  const pose = engineSnapshot?.pose ?? fallbackPose;
   const state = engineSnapshot?.state ?? 'idle';
   const presence = engineSnapshot?.presence;
-  const cameraOn =
-    Boolean(status?.settings.cameraEnabled) && cameraSignals.permission === 'granted';
 
-  if (!pose) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-nova-muted text-sm">
-        N.O.V.A. wordt wakker…
-      </div>
-    );
-  }
+  const cameraTracking =
+    Boolean(status?.settings.cameraEnabled) &&
+    cameraSignals.permission === 'granted' &&
+    cameraSignals.available;
+
+  const isStarting = loading || !engineSnapshot;
 
   return (
-    <div className="relative flex flex-col flex-1 min-h-0 w-full overflow-hidden">
+    <div className="relative flex flex-col h-[100dvh] w-full overflow-hidden">
       <HomeBackground glow={presence?.energy ?? 0.5} />
 
-      {/* Header — only brand + menu */}
+      {isStarting && <HomeLoading />}
+
       <header className="relative z-30 flex items-center justify-between px-5 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <span
           className="text-sm font-semibold tracking-[0.25em] text-nova-cyan select-none"
@@ -41,21 +39,38 @@ export default function AvatarHome() {
         <HomeMenu />
       </header>
 
-      {/* Fullscreen avatar */}
       <main className="relative flex-1 min-h-0">
-        <PresenceFace
-          pose={pose}
-          state={state}
-          faceX={cameraOn ? cameraSignals.faceX : 0}
-          faceY={cameraOn ? cameraSignals.faceY : 0}
-          faceDetected={cameraOn && cameraSignals.faceDetected}
-        />
-        <HomeWhisper />
-        <HomeCameraPrompt />
+        <EngineErrorBoundary
+          name="Avatar Engine"
+          fallback={<PresenceFaceStatic pose={fallbackPose} state={state} />}
+        >
+          <EngineErrorBoundary
+            name="Presence Engine"
+            fallback={<PresenceFaceStatic pose={pose} state={state} />}
+          >
+            <PresenceFace
+              pose={pose}
+              state={state}
+              faceX={cameraTracking ? cameraSignals.faceX : 0}
+              faceY={cameraTracking ? cameraSignals.faceY : 0}
+              faceDetected={cameraTracking && cameraSignals.faceDetected}
+            />
+          </EngineErrorBoundary>
+        </EngineErrorBoundary>
+
+        <EngineErrorBoundary name="Presence Whispers" fallback={null}>
+          <HomeWhisper />
+        </EngineErrorBoundary>
+
+        <EngineErrorBoundary name="Camera Engine" fallback={null}>
+          <HomeCameraPrompt />
+        </EngineErrorBoundary>
       </main>
 
       <footer className="relative z-30">
-        <HomeMic />
+        <EngineErrorBoundary name="Voice Engine" fallback={null}>
+          <HomeMic />
+        </EngineErrorBoundary>
       </footer>
     </div>
   );

@@ -6,8 +6,10 @@ import {
   randomExpressionId,
 } from '@/lib/avatar/catalog';
 import { SENSOR_API_PORT } from '@/types/sensors';
+import { safeClone } from '@/lib/safeClone';
 
 const API_BASE = import.meta.env.DEV ? '' : `http://localhost:${SENSOR_API_PORT}`;
+const FETCH_TIMEOUT_MS = 2500;
 
 const MOCK_STATUS: AvatarStatus = {
   activeExpressionId: 'blij',
@@ -31,11 +33,14 @@ const MOCK_STATUS: AvatarStatus = {
   lastUpdated: new Date().toISOString(),
 };
 
-let localStatus: AvatarStatus = structuredClone(MOCK_STATUS);
+let localStatus: AvatarStatus = safeClone(MOCK_STATUS);
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T | null> {
   try {
-    const res = await fetch(`${API_BASE}${path}`, init);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const res = await fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal });
+    clearTimeout(timer);
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -63,7 +68,7 @@ function applyLocalPlay(payload: AvatarPlayPayload): AvatarStatus {
       lastUpdated: new Date().toISOString(),
     };
   }
-  return structuredClone(localStatus);
+  return safeClone(localStatus);
 }
 
 export const avatarService = {
@@ -73,7 +78,7 @@ export const avatarService = {
       localStatus = data;
       return data;
     }
-    return structuredClone(localStatus);
+    return safeClone(localStatus);
   },
 
   async play(payload: AvatarPlayPayload): Promise<AvatarStatus> {
@@ -108,8 +113,8 @@ export const avatarService = {
       localStatus = data;
       return data;
     }
-    localStatus = structuredClone(MOCK_STATUS);
-    return structuredClone(localStatus);
+    localStatus = safeClone(MOCK_STATUS);
+    return safeClone(localStatus);
   },
 
   async clearOled(): Promise<AvatarStatus> {
@@ -119,7 +124,7 @@ export const avatarService = {
       return data;
     }
     localStatus = { ...localStatus, oledOnline: false, lastUpdated: new Date().toISOString() };
-    return structuredClone(localStatus);
+    return safeClone(localStatus);
   },
 
   async testConnection(): Promise<{ success: boolean; message: string }> {
@@ -142,14 +147,14 @@ export const avatarService = {
         ...data,
         settings: { ...DEFAULT_AVATAR_SETTINGS, ...data.settings },
       };
-      return structuredClone(localStatus);
+      return safeClone(localStatus);
     }
     localStatus = {
       ...localStatus,
       settings: { ...DEFAULT_AVATAR_SETTINGS, ...localStatus.settings, ...partial },
       lastUpdated: new Date().toISOString(),
     };
-    return structuredClone(localStatus);
+    return safeClone(localStatus);
   },
 
   async updateAutoEmotions(autoEmotions: Partial<AutoEmotionMap>): Promise<AvatarStatus> {
@@ -167,7 +172,7 @@ export const avatarService = {
       autoEmotions: { ...localStatus.autoEmotions, ...autoEmotions },
       lastUpdated: new Date().toISOString(),
     };
-    return structuredClone(localStatus);
+    return safeClone(localStatus);
   },
 
   randomExpression(): AvatarPlayPayload {

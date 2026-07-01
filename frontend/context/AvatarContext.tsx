@@ -12,6 +12,7 @@ import { avatarEngine } from '@/lib/avatar/engine/AvatarEngine';
 import { avatarEventBus } from '@/lib/avatar/engine/eventBus';
 import { buildRenderPose } from '@/lib/avatar/engine/EmotionEngine';
 import { cameraEngine } from '@/lib/avatar/engine/CameraEngine';
+import { createSafeRafLoop } from '@/lib/safeRaf';
 import type { AvatarEngineSnapshot, CameraSignals, SystemSignals, VoiceSignals } from '@/lib/avatar/engine/types';
 import type { ContextEventType } from '@/lib/avatar/engine/types';
 import { useSensors } from '@/hooks/useSensors';
@@ -86,7 +87,7 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
   const [presenceProfile, setPresenceProfile] = useState<PresenceProfile>(DEFAULT_PRESENCE_PROFILE);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const lastActivityRef = useRef(Date.now());
-  const rafRef = useRef(0);
+  const rafStopRef = useRef<(() => void) | null>(null);
 
   const stats = useSystemStats();
   const { alerts, devices } = useSensors(30000);
@@ -121,26 +122,22 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    loadPresenceProfile().then(setPresenceProfile);
-    readStorage<CalendarEvent[]>('events', []).then(setCalendarEvents);
+    loadPresenceProfile().then(setPresenceProfile).catch(() => {});
+    readStorage<CalendarEvent[]>('events', []).then(setCalendarEvents).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (status?.settings.cameraEnabled && cameraSignals.permission === 'prompt') {
-      cameraEngine.requestAccess();
-    }
-    if (status?.settings.cameraEnabled === false && cameraSignals.available) {
-      cameraEngine.stop();
-    }
-  }, [status?.settings.cameraEnabled, cameraSignals.permission, cameraSignals.available]);
-
   const refresh = useCallback(async () => {
-    const next = await avatarService.getStatus();
-    if (!next.settings.autonomousAvatar && next.settings.autonomousAvatar !== false) {
-      next.settings.autonomousAvatar = true;
+    try {
+      const next = await avatarService.getStatus();
+      if (!next.settings.autonomousAvatar && next.settings.autonomousAvatar !== false) {
+        next.settings.autonomousAvatar = true;
+      }
+      setStatus(next);
+    } catch {
+      /* local mock remains usable */
+    } finally {
+      setLoading(false);
     }
-    setStatus(next);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -214,49 +211,54 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    const loop = () => {
+    const stop = createSafeRafLoop(() => {
       const now = Date.now();
       const settings = status?.settings;
       const autonomous = settings?.autonomousAvatar ?? true;
 
-      const snapshot = avatarEngine.tick({
-        autonomous,
-        personality: settings?.personalityId ?? 'friendly',
-        theme: settings?.theme ?? 'classic',
-        voice: voiceSignals,
-        camera: cameraSignals,
-        system: systemSignals,
-        manualExpressionId: autonomous ? null : manualExpressionId,
-        manualAnimationId: autonomous ? null : manualAnimationId,
-        lastActivityAt: lastActivityRef.current,
-        now,
-        presenceProfile: presenceSettings.presenceMemoryEnabled ? presenceProfile : DEFAULT_PRESENCE_PROFILE,
-        presenceSettings,
-        environment,
-      });
+      try {
+        const snapshot = avatarEngine.tick({
+          autonomous,
+          personality: settings?.personalityId ?? 'friendly',
+          theme: settings?.theme ?? 'classic',
+          voice: voiceSignals,
+          camera: cameraSignals,
+          system: systemSignals,
+          manualExpressionId: autonomous ? null : manualExpressionId,
+          manualAnimationId: autonomous ? null : manualAnimationId,
+          lastActivityAt: lastActivityRef.current,
+          now,
+          presenceProfile: presenceSettings.presenceMemoryEnabled ? presenceProfile : DEFAULT_PRESENCE_PROFILE,
+          presenceSettings,
+          environment,
+        });
 
-      setEngineSnapshot(snapshot);
+        setEngineSnapshot(snapshot);
 
-      if (status && autonomous) {
-        const expr = getExpressionById(snapshot.pose.expressionId);
-        setStatus((prev) =>
-          prev
-            ? {
-                ...prev,
-                activeExpressionId: snapshot.pose.expressionId,
-                expressionLabel: expr.name,
-                activeAnimationId: (snapshot.pose.activeAnimation as AvatarAnimationId) || prev.activeAnimationId,
-                animationLabel: snapshot.pose.activeAnimation,
-              }
-            : prev
-        );
+        if (status && autonomous) {
+          const expr = getExpressionById(snapshot.pose.expressionId);
+          setStatus((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  activeExpressionId: snapshot.pose.expressionId,
+                  expressionLabel: expr.name,
+                  activeAnimationId: (snapshot.pose.activeAnimation as AvatarAnimationId) || prev.activeAnimationId,
+                  animationLabel: snapshot.pose.activeAnimation,
+                }
+              : prev
+          );
+        }
+      } catch (err) {
+        console.error('[AvatarEngine.tick]', err);
       }
+    });
 
-      rafRef.current = requestAnimationFrame(loop);
+    rafStopRef.current = stop;
+    return () => {
+      stop();
+      rafStopRef.current = null;
     };
-
-    rafRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafRef.current);
   }, [
     status?.settings,
     voiceSignals,
@@ -367,13 +369,21 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const enableCamera = useCallback(async () => {
-    await updateSettings({ cameraEnabled: true });
-    await cameraEngine.requestAccess();
+    try {
+      await updateSettings({ cameraEnabled: true });
+      await cameraEngine.requestAccess();
+    } catch (err) {
+      console.error('[CameraEngine]', err);
+    }
   }, [updateSettings]);
 
   const disableCamera = useCallback(() => {
-    updateSettings({ cameraEnabled: false });
-    cameraEngine.stop();
+    try {
+      updateSettings({ cameraEnabled: false });
+      cameraEngine.stop();
+    } catch (err) {
+      console.error('[CameraEngine.stop]', err);
+    }
   }, [updateSettings]);
 
   const presenceSnapshot = engineSnapshot?.presence ?? null;

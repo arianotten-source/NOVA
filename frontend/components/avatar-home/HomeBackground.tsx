@@ -1,6 +1,20 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useClientOnly } from '@/hooks/useClientOnly';
+import { createSafeRafLoop } from '@/lib/safeRaf';
+import HomeBackgroundSvg from './HomeBackgroundSvg';
+import EngineErrorBoundary from '@/components/errors/EngineErrorBoundary';
 
-export default function HomeBackground({ glow = 0.5 }: { glow?: number }) {
+function canUseCanvas(): boolean {
+  if (typeof document === 'undefined') return false;
+  try {
+    const c = document.createElement('canvas');
+    return Boolean(c.getContext('2d'));
+  } catch {
+    return false;
+  }
+}
+
+function CanvasBackground({ glow = 0.5 }: { glow?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -9,7 +23,6 @@ export default function HomeBackground({ glow = 0.5 }: { glow?: number }) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let raf = 0;
     const particles = Array.from({ length: 40 }, () => ({
       x: Math.random(),
       y: Math.random(),
@@ -26,7 +39,7 @@ export default function HomeBackground({ glow = 0.5 }: { glow?: number }) {
     resize();
     window.addEventListener('resize', resize);
 
-    const draw = () => {
+    const stop = createSafeRafLoop(() => {
       const w = canvas.width;
       const h = canvas.height;
       ctx.clearRect(0, 0, w, h);
@@ -48,13 +61,10 @@ export default function HomeBackground({ glow = 0.5 }: { glow?: number }) {
         ctx.fillStyle = `rgba(0, 212, 255, ${p.a})`;
         ctx.fill();
       }
+    });
 
-      raf = requestAnimationFrame(draw);
-    };
-
-    draw();
     return () => {
-      cancelAnimationFrame(raf);
+      stop();
       window.removeEventListener('resize', resize);
     };
   }, [glow]);
@@ -70,5 +80,28 @@ export default function HomeBackground({ glow = 0.5 }: { glow?: number }) {
       />
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" aria-hidden />
     </div>
+  );
+}
+
+export default function HomeBackground({ glow = 0.5 }: { glow?: number }) {
+  const client = useClientOnly();
+  const [useCanvas, setUseCanvas] = useState(false);
+
+  useEffect(() => {
+    if (client) setUseCanvas(canUseCanvas());
+  }, [client]);
+
+  if (!client) {
+    return <HomeBackgroundSvg />;
+  }
+
+  if (!useCanvas) {
+    return <HomeBackgroundSvg />;
+  }
+
+  return (
+    <EngineErrorBoundary name="Canvas Background" fallback={<HomeBackgroundSvg />}>
+      <CanvasBackground glow={glow} />
+    </EngineErrorBoundary>
   );
 }

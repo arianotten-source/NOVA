@@ -5,6 +5,7 @@
 @layer base {
   html {
     @apply overflow-x-hidden;
+    height: 100dvh;
   }
 
   * {
@@ -14,6 +15,8 @@
   body {
     @apply bg-nova-black text-gray-100 font-sans antialiased overflow-x-hidden;
     overflow-y: hidden;
+    min-height: 100dvh;
+    height: 100dvh;
   }
 
   #root {

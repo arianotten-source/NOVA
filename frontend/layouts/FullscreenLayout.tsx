@@ -8,7 +8,7 @@ export default function FullscreenLayout() {
   }, []);
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-[#050810]">
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-[#050810] h-[100dvh] w-full">
       <Outlet />
     </div>
   );

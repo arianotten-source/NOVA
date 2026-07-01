@@ -104,8 +104,9 @@ export class CameraEngine {
 
     const tick = () => {
       if (!this.video) return;
-      ctx.drawImage(this.video, 0, 0, w, h);
-      const data = ctx.getImageData(0, 0, w, h).data;
+      try {
+        ctx.drawImage(this.video, 0, 0, w, h);
+        const data = ctx.getImageData(0, 0, w, h).data;
 
       let sumX = 0;
       let sumY = 0;
@@ -156,6 +157,9 @@ export class CameraEngine {
         faceY: Math.max(-1, Math.min(1, this.smoothY)),
       };
       this.emit();
+      } catch {
+        /* canvas taint or frame skip — keep last signals */
+      }
       this.rafId = requestAnimationFrame(tick);
     };
 

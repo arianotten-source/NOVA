@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { AnimatePresence } from 'framer-motion';
 import SplashScreen from './SplashScreen';
 
 const SPLASH_KEY = 'nova-v2-splash-seen';
@@ -9,13 +8,17 @@ interface SplashGateProps {
 }
 
 export default function SplashGate({ children }: SplashGateProps) {
-  const [showSplash, setShowSplash] = useState(() => {
+  const [showSplash, setShowSplash] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
     try {
-      return !sessionStorage.getItem(SPLASH_KEY);
+      setShowSplash(!sessionStorage.getItem(SPLASH_KEY));
     } catch {
-      return true;
+      setShowSplash(true);
     }
-  });
+  }, []);
 
   useEffect(() => {
     if (!showSplash) return;
@@ -30,10 +33,22 @@ export default function SplashGate({ children }: SplashGateProps) {
     return () => clearTimeout(t);
   }, [showSplash]);
 
+  if (!mounted) {
+    return (
+      <div className="h-[100dvh] w-full flex items-center justify-center bg-[#04060e] text-nova-cyan text-sm">
+        N.O.V.A. wordt gestart...
+      </div>
+    );
+  }
+
   return (
     <>
-      <AnimatePresence>{showSplash && <SplashScreen />}</AnimatePresence>
-      {!showSplash && children}
+      {children}
+      {showSplash && (
+        <div className="fixed inset-0 z-[200]">
+          <SplashScreen />
+        </div>
+      )}
     </>
   );
 }
