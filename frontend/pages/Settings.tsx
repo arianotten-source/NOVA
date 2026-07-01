@@ -1,4 +1,5 @@
 import { useSettings } from '@/hooks/useSettings';
+import AvatarSettingsPanel from '@/components/avatar/AvatarSettingsPanel';
 import { Save } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { AppSettings } from '@/types';
@@ -94,8 +95,9 @@ export default function Settings() {
           </label>
         </section>
 
+        <AvatarSettingsPanel />
+
         <section className="nova-panel p-6">
-          <h2 className="text-sm font-medium text-nova-muted uppercase tracking-wider mb-3">Toekomstige uitbreidingen</h2>
           <div className="grid grid-cols-2 gap-2 text-xs text-nova-muted">
             {['Camera vision', 'Gezichtsherkenning', 'Robotlichaam', 'ESP32 modules', 'Smart home', 'Persoonlijk geheugen', 'Emotie analyse', 'Lokale AI modellen', 'Home Assistant'].map((item) => (
               <div key={item} className="px-3 py-2 rounded-lg bg-nova-dark border border-nova-border">

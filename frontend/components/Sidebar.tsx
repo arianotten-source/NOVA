@@ -6,17 +6,17 @@ import { navItems } from '@/components/navItems';
 export default function Sidebar() {
   return (
     <aside className="hidden md:flex flex-shrink-0 bg-nova-dark border-r border-nova-border flex-col md:w-[4.5rem] xl:w-56">
-      <div className="p-3 xl:p-5 border-b border-nova-border">
+      <NavLink to="/" className="p-3 xl:p-5 border-b border-nova-border block hover:bg-nova-panel/30 transition-colors">
         <div className="flex items-center gap-3 justify-center xl:justify-start">
           <div className="w-9 h-9 rounded-lg bg-nova-blue/10 border border-nova-blue/30 flex items-center justify-center shadow-neon flex-shrink-0">
             <Cpu className="w-5 h-5 text-nova-blue" />
           </div>
           <div className="hidden xl:block min-w-0">
             <h1 className="text-sm font-bold tracking-wider text-nova-cyan">N.O.V.A.</h1>
-            <p className="text-[10px] text-nova-muted uppercase tracking-widest">Assistant</p>
+            <p className="text-[10px] text-nova-muted uppercase tracking-widest">Home</p>
           </div>
         </div>
-      </div>
+      </NavLink>
 
       <nav className="flex-1 p-2 xl:p-3 space-y-1 overflow-y-auto overflow-x-hidden">
         {navItems.map(({ to, icon: Icon, label }) => (
