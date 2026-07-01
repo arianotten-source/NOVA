@@ -9,7 +9,11 @@ interface Particle {
   a: number;
 }
 
-export default function AmbientBackground() {
+interface AmbientBackgroundProps {
+  glowIntensity?: number;
+}
+
+export default function AmbientBackground({ glowIntensity = 0.5 }: AmbientBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -41,8 +45,8 @@ export default function AmbientBackground() {
       ctx.clearRect(0, 0, w, h);
 
       const grad = ctx.createRadialGradient(w * 0.5, h * 0.35, 0, w * 0.5, h * 0.4, w * 0.8);
-      grad.addColorStop(0, 'rgba(0, 80, 120, 0.12)');
-      grad.addColorStop(0.45, 'rgba(40, 20, 80, 0.08)');
+      grad.addColorStop(0, `rgba(0, 80, 120, ${0.08 + glowIntensity * 0.08})`);
+      grad.addColorStop(0.45, `rgba(40, 20, 80, ${0.05 + glowIntensity * 0.05})`);
       grad.addColorStop(1, 'rgba(5, 8, 16, 0)');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
@@ -67,7 +71,7 @@ export default function AmbientBackground() {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
     };
-  }, []);
+  }, [glowIntensity]);
 
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden bg-[#050810]">

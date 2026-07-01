@@ -90,6 +90,27 @@ export interface EngineInput {
   manualAnimationId?: string | null;
   lastActivityAt: number;
   now: number;
+  presenceProfile?: import('../presence/types').PresenceProfile;
+  presenceSettings?: import('../presence/types').PresenceSettings;
+  environment?: import('../presence/types').EnvironmentContext;
+}
+
+export interface MicroAnimChannels {
+  animId: string;
+  browLeftY: number;
+  browRightY: number;
+  eyeOpenLeft: number;
+  eyeOpenRight: number;
+  mouthCornerLeft: number;
+  mouthCornerRight: number;
+  pupilScale: number;
+  floatY: number;
+  glowIntensity: number;
+  sighAmount: number;
+  yawnAmount: number;
+  lookX: number;
+  lookY: number;
+  asymmetricSmile: number;
 }
 
 export interface RenderPose {
@@ -110,6 +131,7 @@ export interface RenderPose {
   transitionProgress: number;
   activeAnimation: string;
   isBlinking: boolean;
+  microAnim?: MicroAnimChannels;
 }
 
 export interface AvatarEngineSnapshot {
@@ -125,6 +147,7 @@ export interface AvatarEngineSnapshot {
   lastContextEvent: ContextEvent | null;
   idleAction: string | null;
   autonomous: boolean;
+  presence?: import('../presence/types').PresenceSnapshot;
 }
 
 export interface StateDefinition {

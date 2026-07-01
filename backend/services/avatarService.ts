@@ -67,6 +67,10 @@ const DEFAULT_SETTINGS: AvatarSettings = {
   expressionIntensity: 'normal',
   theme: 'classic',
   autonomousAvatar: true,
+  cameraEnabled: false,
+  presenceMemoryEnabled: true,
+  initiativeEnabled: true,
+  localProcessingOnly: true,
 };
 
 const DEFAULT_AUTO_EMOTIONS: AutoEmotionMap = {

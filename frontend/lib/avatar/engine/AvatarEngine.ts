@@ -13,6 +13,11 @@ import { emptyMood, lerpMood, addNoise, normalizeBlend } from './MoodBlend';
 import { getStateDef, normalizeMood } from './stateMachine';
 import { resolvePersonality } from './personalities';
 import { hardwareBridge } from './HardwareBridge';
+import { presenceEngine } from '../presence/PresenceEngine';
+import {
+  DEFAULT_PRESENCE_PROFILE,
+  DEFAULT_PRESENCE_SETTINGS,
+} from '../presence/types';
 
 export class AvatarEngine {
   private context = new ContextEngine();
@@ -140,7 +145,32 @@ export class AvatarEngine {
       if (idleOut.isBlinking) this.animation.playOneShot('blink', input.now);
     }
 
-    if (input.camera.userLooking) {
+    const presenceInput = {
+      now: input.now,
+      mood: this.mood,
+      targetMood: this.targetMood,
+      state: this.currentState,
+      voice: input.voice,
+      camera: input.camera,
+      system: input.system,
+      personality,
+      inactiveMs,
+      profile: input.presenceProfile ?? DEFAULT_PRESENCE_PROFILE,
+      settings: input.presenceSettings ?? DEFAULT_PRESENCE_SETTINGS,
+      environment: input.environment ?? {},
+      idleAction: idleOut.action,
+    };
+
+    const presence = presenceEngine.tick(presenceInput);
+    if (input.autonomous) {
+      this.mood = presenceEngine.applyMoodModifiers(this.mood, presence.moodModifiers);
+    }
+
+    if (presence.mode === 'sleeping' && input.autonomous && !voiceOut.state) {
+      this.currentState = 'sleeping';
+    }
+
+    if (input.camera.userLooking && input.camera.permission === 'granted') {
       idleOut.eyeOffsetX += input.camera.faceX * 0.15;
       idleOut.eyeOffsetY += input.camera.faceY * 0.1;
     }
@@ -150,21 +180,35 @@ export class AvatarEngine {
       transitionProgress: this.transitionProgress,
     });
 
+    const micro = presence.microAnim;
+
     const pose: RenderPose = {
       ...basePose,
-      eyeOffsetX: basePose.eyeOffsetX + idleOut.eyeOffsetX + (animFrame.headTilt ?? 0) * 0.1,
-      eyeOffsetY: basePose.eyeOffsetY + idleOut.eyeOffsetY + (animFrame.eyeOffsetY ?? 0),
-      pupilOffsetX: idleOut.pupilOffsetX + input.camera.faceX * 0.2,
-      pupilOffsetY: idleOut.pupilOffsetY + input.camera.faceY * 0.15,
+      eyeOffsetX: basePose.eyeOffsetX + idleOut.eyeOffsetX + (animFrame.headTilt ?? 0) * 0.1 + micro.lookX * 0.05,
+      eyeOffsetY: basePose.eyeOffsetY + idleOut.eyeOffsetY + (animFrame.eyeOffsetY ?? 0) + micro.lookY * 0.05 + micro.floatY * 0.02,
+      pupilOffsetX: idleOut.pupilOffsetX + input.camera.faceX * 0.2 + micro.lookX * 0.08,
+      pupilOffsetY: idleOut.pupilOffsetY + input.camera.faceY * 0.15 + micro.lookY * 0.08,
       headTilt: basePose.headTilt + idleOut.headTilt + (animFrame.headTilt ?? 0),
-      headNod: (animFrame.headNod ?? 0) + (idleOut.action === 'yawn' ? 3 : 0),
-      mouthOpen: Math.max(voiceOut.mouthOpen, animFrame.mouthOpen ?? 0),
+      headNod: (animFrame.headNod ?? 0) + (idleOut.action === 'yawn' ? 3 : 0) + micro.yawnAmount * 2,
+      mouthOpen: Math.max(voiceOut.mouthOpen, animFrame.mouthOpen ?? 0) + micro.sighAmount * 0.1,
       blinkAmount: idleOut.isBlinking ? 1 : 0,
-      browRaise: basePose.browRaise + voiceOut.browRaise,
-      eyeScale: basePose.eyeScale + voiceOut.eyeScaleBoost,
-      smileAmount: Math.min(1, Math.max(-0.5, basePose.smileAmount + idleOut.smileBoost + (animFrame.smileAmount ?? 0) * 0.3)),
-      glowPulse: animFrame.glowPulse ?? (this.currentState === 'thinking' ? 0.35 : 0),
-      isBlinking: idleOut.isBlinking,
+      browRaise: basePose.browRaise + voiceOut.browRaise - (micro.browLeftY + micro.browRightY) * 0.02,
+      eyeScale: basePose.eyeScale + voiceOut.eyeScaleBoost + (micro.pupilScale - 1) * 0.5,
+      smileAmount: Math.min(
+        1,
+        Math.max(
+          -0.5,
+          basePose.smileAmount +
+            idleOut.smileBoost +
+            (animFrame.smileAmount ?? 0) * 0.3 +
+            micro.mouthCornerLeft * 0.2 +
+            micro.mouthCornerRight * 0.2 +
+            micro.asymmetricSmile * 0.15
+        )
+      ),
+      glowPulse: Math.max(animFrame.glowPulse ?? 0, micro.glowIntensity, this.currentState === 'thinking' ? 0.35 : 0),
+      isBlinking: idleOut.isBlinking || micro.eyeOpenLeft < 0.2,
+      microAnim: micro,
     };
 
     if (!input.autonomous && input.manualExpressionId) {
@@ -186,6 +230,7 @@ export class AvatarEngine {
       lastContextEvent: this.context.lastEvent,
       idleAction: idleOut.action,
       autonomous: this.autonomous,
+      presence,
     };
   }
 

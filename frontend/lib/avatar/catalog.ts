@@ -104,6 +104,10 @@ export const DEFAULT_AVATAR_SETTINGS = {
   expressionIntensity: 'normal' as const,
   theme: 'classic' as const,
   autonomousAvatar: true,
+  cameraEnabled: false,
+  presenceMemoryEnabled: true,
+  initiativeEnabled: true,
+  localProcessingOnly: true,
 };
 
 export function getExpressionById(id: AvatarExpressionId) {

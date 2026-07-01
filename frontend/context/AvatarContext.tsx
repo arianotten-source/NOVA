@@ -24,6 +24,18 @@ import type {
   AutoEmotionId,
 } from '@/types/avatar';
 import { getExpressionById } from '@/lib/avatar/catalog';
+import {
+  loadPresenceProfile,
+  savePresenceProfile,
+  recordInteraction,
+  adaptVoicePace,
+} from '@/lib/avatar/presence/PresenceMemory';
+import type { PresenceProfile, PresenceSettings, EnvironmentContext } from '@/lib/avatar/presence/types';
+import { DEFAULT_PRESENCE_PROFILE, DEFAULT_PRESENCE_SETTINGS } from '@/lib/avatar/presence/types';
+import { readStorage } from '@/lib/storage';
+import { eventsForDay, parseEventDate, parseEventTime } from '@/lib/calendarUtils';
+import type { CalendarEvent } from '@/types';
+import type { PresenceSnapshot } from '@/lib/avatar/presence/types';
 
 interface AvatarContextValue {
   status: AvatarStatus | null;
@@ -49,6 +61,8 @@ interface AvatarContextValue {
   setSpeaking: (v: boolean) => void;
   enableCamera: () => Promise<void>;
   disableCamera: () => void;
+  presenceSnapshot: PresenceSnapshot | null;
+  presenceProfile: PresenceProfile;
 }
 
 const AvatarContext = createContext<AvatarContextValue | null>(null);
@@ -69,11 +83,13 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
   const [cameraSignals, setCameraSignals] = useState<CameraSignals>(cameraEngine.getSignals());
   const [manualExpressionId, setManualExpressionId] = useState<AvatarExpressionId | null>(null);
   const [manualAnimationId, setManualAnimationId] = useState<AvatarAnimationId | null>(null);
+  const [presenceProfile, setPresenceProfile] = useState<PresenceProfile>(DEFAULT_PRESENCE_PROFILE);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const lastActivityRef = useRef(Date.now());
   const rafRef = useRef(0);
 
   const stats = useSystemStats();
-  const { alerts } = useSensors(30000);
+  const { alerts, devices } = useSensors(30000);
   const [battery, setBattery] = useState<{ level: number | null; charging: boolean }>({
     level: null,
     charging: false,
@@ -103,6 +119,20 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
       unsub();
     };
   }, []);
+
+  useEffect(() => {
+    loadPresenceProfile().then(setPresenceProfile);
+    readStorage<CalendarEvent[]>('events', []).then(setCalendarEvents);
+  }, []);
+
+  useEffect(() => {
+    if (status?.settings.cameraEnabled && cameraSignals.permission === 'prompt') {
+      cameraEngine.requestAccess();
+    }
+    if (status?.settings.cameraEnabled === false && cameraSignals.available) {
+      cameraEngine.stop();
+    }
+  }, [status?.settings.cameraEnabled, cameraSignals.permission, cameraSignals.available]);
 
   const refresh = useCallback(async () => {
     const next = await avatarService.getStatus();
@@ -140,6 +170,49 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
     [stats, battery, alerts, voiceSignals.isListening]
   );
 
+  const environment: EnvironmentContext = useMemo(() => {
+    const todayEvents = eventsForDay(calendarEvents, new Date());
+    const now = Date.now();
+    const nextEvent = todayEvents
+      .map((e) => ({
+        event: e,
+        start: parseEventDate(e).getTime() + parseEventTime(e) * 60000,
+      }))
+      .filter((e) => e.start > now)
+      .sort((a, b) => a.start - b.start)[0];
+    const agendaMinutesUntil = nextEvent
+      ? Math.round((nextEvent.start - now) / 60000)
+      : null;
+
+    const avgTemp =
+      devices.length > 0
+        ? devices.reduce((sum, d) => sum + d.temperature, 0) / devices.length
+        : null;
+    const avgHumidity =
+      devices.length > 0
+        ? devices.reduce((sum, d) => sum + d.humidity, 0) / devices.length
+        : null;
+
+    return {
+      temperature: avgTemp,
+      humidity: avgHumidity,
+      agendaMinutesUntil,
+      weatherMood: 'unknown' as const,
+    };
+  }, [calendarEvents, devices]);
+
+  const presenceSettings: PresenceSettings = useMemo(
+    () => ({
+      cameraEnabled: status?.settings.cameraEnabled ?? DEFAULT_PRESENCE_SETTINGS.cameraEnabled,
+      presenceMemoryEnabled:
+        status?.settings.presenceMemoryEnabled ?? DEFAULT_PRESENCE_SETTINGS.presenceMemoryEnabled,
+      initiativeEnabled: status?.settings.initiativeEnabled ?? DEFAULT_PRESENCE_SETTINGS.initiativeEnabled,
+      localProcessingOnly:
+        status?.settings.localProcessingOnly ?? DEFAULT_PRESENCE_SETTINGS.localProcessingOnly,
+    }),
+    [status?.settings]
+  );
+
   useEffect(() => {
     const loop = () => {
       const now = Date.now();
@@ -157,6 +230,9 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
         manualAnimationId: autonomous ? null : manualAnimationId,
         lastActivityAt: lastActivityRef.current,
         now,
+        presenceProfile: presenceSettings.presenceMemoryEnabled ? presenceProfile : DEFAULT_PRESENCE_PROFILE,
+        presenceSettings,
+        environment,
       });
 
       setEngineSnapshot(snapshot);
@@ -181,12 +257,33 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
 
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [status?.settings, voiceSignals, cameraSignals, systemSignals, manualExpressionId, manualAnimationId]);
+  }, [
+    status?.settings,
+    voiceSignals,
+    cameraSignals,
+    systemSignals,
+    manualExpressionId,
+    manualAnimationId,
+    presenceProfile,
+    presenceSettings,
+    environment,
+  ]);
 
   const setVoiceSignals = useCallback((partial: Partial<VoiceSignals>) => {
-    setVoiceSignalsState((prev) => ({ ...prev, ...partial }));
+    setVoiceSignalsState((prev) => {
+      const next = { ...prev, ...partial };
+      if (partial.userTalking || partial.isListening) {
+        const updated = recordInteraction(presenceProfile);
+        const adapted = adaptVoicePace(updated, partial.speechEnergy ?? 0.5);
+        if (presenceSettings.presenceMemoryEnabled) {
+          setPresenceProfile(adapted);
+          savePresenceProfile(adapted).catch(() => {});
+        }
+      }
+      return next;
+    });
     lastActivityRef.current = Date.now();
-  }, []);
+  }, [presenceProfile, presenceSettings.presenceMemoryEnabled]);
 
   const setThinking = useCallback((v: boolean) => {
     setVoiceSignals({ isThinking: v, isSpeaking: false });
@@ -270,12 +367,16 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const enableCamera = useCallback(async () => {
+    await updateSettings({ cameraEnabled: true });
     await cameraEngine.requestAccess();
-  }, []);
+  }, [updateSettings]);
 
   const disableCamera = useCallback(() => {
+    updateSettings({ cameraEnabled: false });
     cameraEngine.stop();
-  }, []);
+  }, [updateSettings]);
+
+  const presenceSnapshot = engineSnapshot?.presence ?? null;
 
   const value = useMemo(
     () => ({
@@ -302,6 +403,8 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
       setSpeaking,
       enableCamera,
       disableCamera,
+      presenceSnapshot,
+      presenceProfile,
     }),
     [
       status,
@@ -327,6 +430,8 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
       setSpeaking,
       enableCamera,
       disableCamera,
+      presenceSnapshot,
+      presenceProfile,
     ]
   );
 

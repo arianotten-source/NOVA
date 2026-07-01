@@ -22,17 +22,20 @@ export default function FloatingAvatarFace({
   const [gaze, setGaze] = useState({ x: 0, y: 0 });
   const smoothX = useRef(0);
   const smoothY = useRef(0);
+  const micro = pose.microAnim;
 
   useEffect(() => {
     let raf = 0;
     const tick = () => {
       searchPhase.current += 0.018;
+      const microLookX = micro?.lookX ?? 0;
+      const microLookY = micro?.lookY ?? 0;
       const targetX = faceDetected
-        ? Math.max(-15, Math.min(15, faceX * 15))
-        : Math.sin(searchPhase.current) * 8;
+        ? Math.max(-15, Math.min(15, faceX * 15)) + microLookX
+        : Math.sin(searchPhase.current) * 8 + microLookX;
       const targetY = faceDetected
-        ? Math.max(-10, Math.min(10, faceY * 10))
-        : Math.cos(searchPhase.current * 0.7) * 5;
+        ? Math.max(-10, Math.min(10, faceY * 10)) + microLookY
+        : Math.cos(searchPhase.current * 0.7) * 5 + microLookY;
 
       smoothX.current += (targetX - smoothX.current) * 0.08;
       smoothY.current += (targetY - smoothY.current) * 0.08;
@@ -41,15 +44,16 @@ export default function FloatingAvatarFace({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [faceDetected, faceX, faceY]);
+  }, [faceDetected, faceX, faceY, micro?.lookX, micro?.lookY]);
 
   const breathe = useSpring(1, { stiffness: 40, damping: 12 });
   useEffect(() => {
     const i = setInterval(() => {
-      breathe.set(1 + Math.sin(Date.now() / 2000) * 0.012);
+      const float = micro?.floatY ?? 0;
+      breathe.set(1 + Math.sin(Date.now() / 2000) * 0.012 + float * 0.002);
     }, 32);
     return () => clearInterval(i);
-  }, [breathe]);
+  }, [breathe, micro?.floatY]);
 
   const smile = Math.max(-0.4, Math.min(1, pose.smileAmount));
   const mouthOpen = pose.mouthOpen;
@@ -61,8 +65,10 @@ export default function FloatingAvatarFace({
   const sleepy = state === 'sleeping' || pose.expressionId === 'slaperig';
   const surprised = state === 'surprised' || pose.expressionId === 'verrast';
 
-  const leftBrowY = -8 - browRaise * 12 + (curious ? -8 : 0) + (angry ? 6 : 0);
-  const rightBrowY = -8 - browRaise * 12 + (angry ? 6 : 0);
+  const eyeOpenL = micro?.eyeOpenLeft ?? 1;
+  const eyeOpenR = micro?.eyeOpenRight ?? 1;
+  const browLeftY = -8 - browRaise * 12 + (curious ? -8 : 0) + (angry ? 6 : 0) + (micro?.browLeftY ?? 0);
+  const browRightY = -8 - browRaise * 12 + (angry ? 6 : 0) + (micro?.browRightY ?? 0);
 
   return (
     <motion.div
@@ -79,9 +85,9 @@ export default function FloatingAvatarFace({
       >
         <motion.line
           x1="95"
-          y1={120 + leftBrowY}
+          y1={120 + browLeftY}
           x2="165"
-          y2={108 + leftBrowY}
+          y2={108 + browLeftY}
           stroke="#67e8f9"
           strokeWidth="5"
           strokeLinecap="round"
@@ -89,9 +95,9 @@ export default function FloatingAvatarFace({
         />
         <motion.line
           x1="235"
-          y1={108 + rightBrowY}
+          y1={108 + browRightY}
           x2="305"
-          y2={120 + rightBrowY}
+          y2={120 + browRightY}
           stroke="#67e8f9"
           strokeWidth="5"
           strokeLinecap="round"
@@ -102,9 +108,10 @@ export default function FloatingAvatarFace({
           const cy = 175 + pose.eyeOffsetY;
           const pupilCx = cx + gaze.x * 0.35 + pose.pupilOffsetX;
           const pupilCy = cy + gaze.y * 0.35 + pose.pupilOffsetY;
+          const open = side === 'left' ? eyeOpenL : eyeOpenR;
           const rx = 42 * eyeScale * (surprised ? 1.15 : 1);
-          const ry = blink || sleepy ? 4 : 38 * eyeScale * (surprised ? 1.12 : 1);
-          const pupilR = surprised ? 14 : angry ? 8 : 11;
+          const ry = blink || sleepy ? 4 : 38 * eyeScale * open * (surprised ? 1.12 : 1);
+          const pupilR = (surprised ? 14 : angry ? 8 : 11) * (micro?.pupilScale ?? 1);
 
           return (
             <g key={side}>
@@ -117,7 +124,7 @@ export default function FloatingAvatarFace({
                 stroke="rgba(103,232,249,0.5)"
                 strokeWidth="2"
               />
-              {!blink && !sleepy && (
+              {!blink && ry > 6 && (
                 <>
                   <circle cx={pupilCx} cy={pupilCy} r={pupilR} fill="#0a1628" />
                   <circle cx={pupilCx + 4} cy={pupilCy - 3} r="3" fill="rgba(255,255,255,0.7)" />
@@ -134,7 +141,7 @@ export default function FloatingAvatarFace({
               : surprised
                 ? `M ${178} ${360} a 22 22 0 1 0 44 0 a 22 22 0 1 0 -44 0`
                 : smile > 0.35
-                  ? `M ${150} ${365} Q 200 ${395 + smile * 15} 250 ${365}`
+                  ? `M ${150 + (micro?.mouthCornerLeft ?? 0) * 10} ${365} Q 200 ${395 + smile * 15} ${250 - (micro?.mouthCornerRight ?? 0) * 10} ${365}`
                   : smile < -0.1
                     ? `M ${160} ${385} Q 200 ${355} 240 ${385}`
                     : `M ${165} ${372} L 235 ${372}`

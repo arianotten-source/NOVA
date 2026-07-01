@@ -67,6 +67,10 @@ export interface AvatarSettings {
   expressionIntensity: AvatarLevel;
   theme: AvatarTheme;
   autonomousAvatar?: boolean;
+  cameraEnabled?: boolean;
+  presenceMemoryEnabled?: boolean;
+  initiativeEnabled?: boolean;
+  localProcessingOnly?: boolean;
 }
 
 export type AutoEmotionMap = Record<AutoEmotionId, boolean>;
