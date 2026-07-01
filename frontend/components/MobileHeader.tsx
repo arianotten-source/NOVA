@@ -9,7 +9,7 @@ interface MobileHeaderProps {
 export default function MobileHeader({ onMenuOpen }: MobileHeaderProps) {
   const location = useLocation();
   const current = navItems.find((item) =>
-    item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to)
+    location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)
   );
 
   return (

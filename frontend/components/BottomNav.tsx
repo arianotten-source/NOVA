@@ -15,7 +15,7 @@ import {
 import { cn } from '@/lib/utils';
 
 const mainItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/chat', icon: MessageSquare, label: 'Chat' },
   { to: '/tasks', icon: CheckSquare, label: 'Taken' },
   { to: '/agenda', icon: Calendar, label: 'Agenda' },

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 export const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/chat', icon: MessageSquare, label: 'Chat' },
   { to: '/notes', icon: StickyNote, label: 'Notities' },
   { to: '/tasks', icon: CheckSquare, label: 'Taken' },

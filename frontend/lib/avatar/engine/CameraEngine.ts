@@ -1,9 +1,16 @@
 import type { CameraSignals } from './types';
 
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
+}
+
 export class CameraEngine {
   private stream: MediaStream | null = null;
   private video: HTMLVideoElement | null = null;
   private rafId = 0;
+  private smoothX = 0;
+  private smoothY = 0;
+  private searchPhase = 0;
   private signals: CameraSignals = {
     available: false,
     permission: 'prompt',
@@ -35,14 +42,17 @@ export class CameraEngine {
       return this.getSignals();
     }
 
+    if (this.stream) return this.getSignals();
+
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 160, height: 120 },
+        video: { facingMode: 'user', width: 320, height: 240 },
         audio: false,
       });
       this.video = document.createElement('video');
       this.video.srcObject = this.stream;
       this.video.muted = true;
+      this.video.playsInline = true;
       await this.video.play();
 
       this.signals = {
@@ -68,6 +78,8 @@ export class CameraEngine {
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     this.video = null;
+    this.smoothX = 0;
+    this.smoothY = 0;
     this.signals = {
       available: false,
       permission: this.signals.permission,
@@ -79,42 +91,69 @@ export class CameraEngine {
     this.emit();
   }
 
-  /** Placeholder analysis — ready for MediaPipe Face Detection hook */
+  /** Brightness-centroid tracking — ready for MediaPipe Face Landmarks */
   private startAnalysis() {
     const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx || !this.video) return;
+
+    const w = 80;
+    const h = 60;
+    canvas.width = w;
+    canvas.height = h;
 
     const tick = () => {
       if (!this.video) return;
-      const w = 64;
-      const h = 48;
-      canvas.width = w;
-      canvas.height = h;
       ctx.drawImage(this.video, 0, 0, w, h);
       const data = ctx.getImageData(0, 0, w, h).data;
 
+      let sumX = 0;
+      let sumY = 0;
+      let weight = 0;
       let brightSum = 0;
-      let centerBright = 0;
+
       for (let i = 0; i < data.length; i += 4) {
-        const b = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        brightSum += b;
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const lum = (r + g + b) / 3;
+        brightSum += lum;
         const px = (i / 4) % w;
         const py = Math.floor(i / 4 / w);
-        if (px > w * 0.3 && px < w * 0.7 && py > h * 0.2 && py < h * 0.75) {
-          centerBright += b;
+        const skinish = r > g && g > b && lum > 40 && lum < 220;
+        if (skinish) {
+          sumX += px * lum;
+          sumY += py * lum;
+          weight += lum;
         }
       }
+
       const avg = brightSum / (data.length / 4);
-      const centerAvg = centerBright / (w * h * 0.45);
-      const faceLikely = centerAvg > avg * 0.95 && avg > 25;
+      const faceLikely = weight > w * h * 8 && avg > 30;
+
+      let targetX = 0;
+      let targetY = 0;
+
+      if (faceLikely) {
+        const cx = sumX / weight;
+        const cy = sumY / weight;
+        targetX = ((cx / w) - 0.5) * 2;
+        targetY = ((cy / h) - 0.5) * 2;
+      } else {
+        this.searchPhase += 0.012;
+        targetX = Math.sin(this.searchPhase) * 0.35;
+        targetY = Math.cos(this.searchPhase * 0.65) * 0.25;
+      }
+
+      this.smoothX = lerp(this.smoothX, targetX, faceLikely ? 0.06 : 0.03);
+      this.smoothY = lerp(this.smoothY, targetY, faceLikely ? 0.06 : 0.03);
 
       this.signals = {
         ...this.signals,
         faceDetected: faceLikely,
         userLooking: faceLikely,
-        faceX: faceLikely ? (Math.random() - 0.5) * 4 : 0,
-        faceY: faceLikely ? (Math.random() - 0.5) * 3 : 0,
+        faceX: Math.max(-1, Math.min(1, this.smoothX)),
+        faceY: Math.max(-1, Math.min(1, this.smoothY)),
       };
       this.emit();
       this.rafId = requestAnimationFrame(tick);

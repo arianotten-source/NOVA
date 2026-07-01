@@ -26,16 +26,20 @@
       "data/**/*"
     ],
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Utility"
     }
   },
   "dependencies": {
+    "date-fns": "^4.1.0",
+    "framer-motion": "^11.18.2",
+    "lucide-react": "^0.469.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.0",
-    "lucide-react": "^0.469.0",
-    "date-fns": "^4.1.0",
     "uuid": "^11.0.3"
   },
   "devDependencies": {

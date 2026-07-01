@@ -116,4 +116,12 @@
   .avatar-anim-boot { animation: avatar-pulse-change 0.6s ease-in-out 3; }
   .avatar-anim-happy .avatar-breathe { animation-duration: 2.5s; }
   .avatar-anim-blink { animation: avatar-blink-keyframes 1.2s ease-in-out 2; }
+
+  .pb-nav-bottom {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+
+  html.nova-fullscreen body {
+    overflow: hidden;
+  }
 }

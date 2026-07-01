@@ -23,7 +23,7 @@ export default function Sidebar() {
           <NavLink
             key={to}
             to={to}
-            end={to === '/'}
+            end={to === '/dashboard'}
             title={label}
             className={({ isActive }) =>
               cn(
