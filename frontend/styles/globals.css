@@ -68,3 +68,52 @@
     @apply nova-panel p-5 hover:border-nova-blue/20 transition-colors;
   }
 }
+
+@layer utilities {
+  @keyframes avatar-breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+  }
+
+  @keyframes avatar-blink-keyframes {
+    0%, 92%, 100% { transform: scaleY(1); }
+    96% { transform: scaleY(0.08); }
+  }
+
+  @keyframes avatar-talk-keyframes {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(2px); }
+  }
+
+  @keyframes avatar-pulse-change {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.04); }
+    100% { transform: scale(1); }
+  }
+
+  .avatar-breathe {
+    animation: avatar-breathe 4s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  .avatar-blink { animation: avatar-blink-keyframes 4s infinite; transform-origin: center; }
+  .avatar-blink-slow { animation: avatar-blink-keyframes 6.5s infinite; transform-origin: center; }
+  .avatar-blink-fast { animation: avatar-blink-keyframes 2.5s infinite; transform-origin: center; }
+
+  .avatar-pulse-on-change {
+    animation: avatar-pulse-change 0.35s ease-out;
+  }
+
+  .avatar-anim-talk .avatar-mouth { animation: avatar-talk-keyframes 0.35s ease-in-out infinite; }
+  .avatar-anim-idle .avatar-breathe { animation-duration: 5s; }
+  .avatar-anim-sleep .avatar-breathe { animation-duration: 7s; }
+  .avatar-anim-think { transform: translateY(-2px); transition: transform 0.4s ease; }
+  .avatar-anim-listen { filter: drop-shadow(0 0 6px rgba(0, 255, 245, 0.35)); }
+  .avatar-anim-laugh .avatar-breathe { animation-duration: 1.2s; }
+  .avatar-anim-sad { opacity: 0.85; transform: translateY(2px); }
+  .avatar-anim-offline { opacity: 0.45; filter: grayscale(0.6); }
+  .avatar-anim-connect { animation: avatar-pulse-change 1s ease-in-out infinite; }
+  .avatar-anim-boot { animation: avatar-pulse-change 0.6s ease-in-out 3; }
+  .avatar-anim-happy .avatar-breathe { animation-duration: 2.5s; }
+  .avatar-anim-blink { animation: avatar-blink-keyframes 1.2s ease-in-out 2; }
+}

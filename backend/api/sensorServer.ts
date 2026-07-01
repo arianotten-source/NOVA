@@ -1,5 +1,6 @@
 import http from 'http';
 import { getSensorService } from '../services/sensorService';
+import { handleAvatarRequest } from './avatarRoutes';
 import type { SensorUpdatePayload } from '../sensors/sensorTypes';
 import { SENSOR_API_PORT } from '../sensors/sensorTypes';
 
@@ -43,6 +44,10 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
   }
 
   const url = req.url ?? '/';
+
+  const handled = await handleAvatarRequest(req, res, url, sendJson, readBody);
+  if (handled) return;
+
   const sensorService = getSensorService();
   await sensorService.load();
 
@@ -92,7 +97,7 @@ export function startSensorServer(port = SENSOR_API_PORT): http.Server {
   });
 
   server.listen(port, '0.0.0.0', () => {
-    console.log(`[N.O.V.A.] Sensor API running on http://0.0.0.0:${port}`);
+    console.log(`[N.O.V.A.] API running on http://0.0.0.0:${port} (sensors + avatar)`);
   });
 
   return server;

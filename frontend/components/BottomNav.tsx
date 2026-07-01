@@ -7,6 +7,7 @@ import {
   Menu,
   StickyNote,
   Radio,
+  Smile,
   Activity,
   FolderOpen,
   Settings,
@@ -23,6 +24,7 @@ const mainItems = [
 const moreItems = [
   { to: '/notes', icon: StickyNote, label: 'Notities' },
   { to: '/sensors', icon: Radio, label: 'Sensoren' },
+  { to: '/avatar', icon: Smile, label: 'Avatar' },
   { to: '/system', icon: Activity, label: 'Systeem' },
   { to: '/files', icon: FolderOpen, label: 'Bestanden' },
   { to: '/settings', icon: Settings, label: 'Instellingen' },

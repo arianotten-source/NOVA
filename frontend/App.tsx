@@ -6,6 +6,7 @@ import Notes from './pages/Notes';
 import Tasks from './pages/Tasks';
 import Agenda from './pages/Agenda';
 import Sensors from './pages/Sensors';
+import Avatar from './pages/Avatar';
 import SystemStatus from './pages/SystemStatus';
 import Files from './pages/Files';
 import Settings from './pages/Settings';
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="tasks" element={<Tasks />} />
         <Route path="agenda" element={<Agenda />} />
         <Route path="sensors" element={<Sensors />} />
+        <Route path="avatar" element={<Avatar />} />
         <Route path="system" element={<SystemStatus />} />
         <Route path="files" element={<Files />} />
         <Route path="settings" element={<Settings />} />
