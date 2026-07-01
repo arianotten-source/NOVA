@@ -97,11 +97,13 @@ export const DEFAULT_AUTO_EMOTIONS: Record<AutoEmotionId, boolean> = {
 export const DEFAULT_AVATAR_SETTINGS = {
   name: 'N.O.V.A.',
   voice: 'Vrouw',
-  personality: 'Vriendelijk',
+  personality: 'Friendly',
+  personalityId: 'friendly' as const,
   animationSpeed: 'normal' as const,
   blinkFrequency: 'normal' as const,
   expressionIntensity: 'normal' as const,
   theme: 'classic' as const,
+  autonomousAvatar: true,
 };
 
 export function getExpressionById(id: AvatarExpressionId) {

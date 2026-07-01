@@ -1,5 +1,7 @@
 import { useAvatar } from '@/context/AvatarContext';
-import type { AvatarLevel, AvatarSpeed, AvatarTheme } from '@/types/avatar';
+import type { AvatarLevel, AvatarPersonalityId, AvatarSpeed, AvatarTheme } from '@/types/avatar';
+import { PERSONALITIES } from '@/lib/avatar/engine/personalities';
+import { cn } from '@/lib/utils';
 
 function OptionGroup<T extends string>({
   label,
@@ -21,11 +23,12 @@ function OptionGroup<T extends string>({
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
-            className={`min-h-[40px] px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+            className={cn(
+              'min-h-[40px] px-3 py-2 rounded-lg text-xs font-semibold border transition-colors touch-manipulation',
               value === opt.value
                 ? 'border-nova-cyan/50 bg-nova-blue/10 text-nova-cyan'
                 : 'border-nova-border bg-nova-dark text-gray-300'
-            }`}
+            )}
           >
             {opt.label}
           </button>
@@ -36,50 +39,48 @@ function OptionGroup<T extends string>({
 }
 
 export default function AvatarSettingsPanel() {
-  const { status, updateSettings } = useAvatar();
+  const { status, updateSettings, enableCamera, disableCamera, cameraSignals } = useAvatar();
   if (!status) return null;
 
-  const s = status.settings;
+  const s = { ...status.settings, autonomousAvatar: status.settings.autonomousAvatar ?? true };
 
   return (
     <section className="nova-panel p-5 space-y-5">
       <h2 className="text-sm font-medium text-nova-muted uppercase tracking-wider">Avatar Instellingen</h2>
 
-      <label className="block space-y-1">
-        <span className="text-xs text-nova-muted">Avatar Naam</span>
+      <label className="flex items-center justify-between gap-4 min-h-[48px] px-3 py-2 rounded-lg bg-nova-dark border border-nova-border cursor-pointer">
+        <div>
+          <span className="text-sm font-semibold text-gray-100">Autonomous Avatar</span>
+          <p className="text-xs text-nova-muted mt-0.5">N.O.V.A. regelt emoties volledig zelfstandig</p>
+        </div>
         <input
-          className="nova-input"
-          value={s.name}
-          onChange={(e) => updateSettings({ name: e.target.value })}
+          type="checkbox"
+          className="w-5 h-5 accent-nova-cyan"
+          checked={s.autonomousAvatar}
+          onChange={(e) => updateSettings({ autonomousAvatar: e.target.checked })}
         />
       </label>
 
       <label className="block space-y-1">
+        <span className="text-xs text-nova-muted">Avatar Naam</span>
+        <input className="nova-input" value={s.name} onChange={(e) => updateSettings({ name: e.target.value })} />
+      </label>
+
+      <label className="block space-y-1">
         <span className="text-xs text-nova-muted">Stem</span>
-        <select
-          className="nova-input"
-          value={s.voice}
-          onChange={(e) => updateSettings({ voice: e.target.value })}
-        >
+        <select className="nova-input" value={s.voice} onChange={(e) => updateSettings({ voice: e.target.value })}>
           <option>Vrouw</option>
           <option>Man</option>
           <option>Neutraal</option>
         </select>
       </label>
 
-      <label className="block space-y-1">
-        <span className="text-xs text-nova-muted">Persoonlijkheid</span>
-        <select
-          className="nova-input"
-          value={s.personality}
-          onChange={(e) => updateSettings({ personality: e.target.value })}
-        >
-          <option>Vriendelijk</option>
-          <option>Professioneel</option>
-          <option>Speels</option>
-          <option>Rustig</option>
-        </select>
-      </label>
+      <OptionGroup<AvatarPersonalityId>
+        label="Persoonlijkheid"
+        value={s.personalityId ?? 'friendly'}
+        options={Object.values(PERSONALITIES).map((p) => ({ value: p.id, label: p.label }))}
+        onChange={(v) => updateSettings({ personalityId: v, personality: PERSONALITIES[v].label })}
+      />
 
       <OptionGroup<AvatarSpeed>
         label="Animatiesnelheid"
@@ -125,6 +126,22 @@ export default function AvatarSettingsPanel() {
         ]}
         onChange={(v) => updateSettings({ theme: v })}
       />
+
+      <div className="pt-2 border-t border-nova-border space-y-2">
+        <span className="text-xs text-nova-muted uppercase tracking-wider">Camera Awareness</span>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="nova-btn-primary min-h-[40px]" onClick={enableCamera}>
+            Camera inschakelen
+          </button>
+          <button type="button" className="nova-btn-ghost min-h-[40px]" onClick={disableCamera}>
+            Uitschakelen
+          </button>
+        </div>
+        <p className="text-xs text-nova-muted">
+          Status: {cameraSignals.permission}
+          {cameraSignals.faceDetected ? ' · Gezicht gedetecteerd' : ''}
+        </p>
+      </div>
     </section>
   );
 }

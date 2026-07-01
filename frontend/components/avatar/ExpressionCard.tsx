@@ -1,6 +1,6 @@
 import type { AvatarExpression } from '@/types/avatar';
-import { useAvatar } from '@/context/AvatarContext';
-import AvatarFace from './AvatarFace';
+import { useAvatar, useAvatarPoseFallback } from '@/context/AvatarContext';
+import AvatarRenderer from './AvatarRenderer';
 import { cn } from '@/lib/utils';
 
 interface ExpressionCardProps {
@@ -8,8 +8,13 @@ interface ExpressionCardProps {
 }
 
 export default function ExpressionCard({ expression }: ExpressionCardProps) {
-  const { status, setExpression } = useAvatar();
+  const { status, setExpression, engineSnapshot } = useAvatar();
   const active = status?.activeExpressionId === expression.id;
+  const fallbackPose = useAvatarPoseFallback(expression.id);
+  const pose =
+    active && engineSnapshot?.pose
+      ? { ...engineSnapshot.pose, expressionId: expression.id }
+      : fallbackPose;
 
   return (
     <article
@@ -19,8 +24,8 @@ export default function ExpressionCard({ expression }: ExpressionCardProps) {
       )}
     >
       <div className="aspect-[2/1] rounded-lg bg-black border border-nova-border overflow-hidden">
-        <AvatarFace
-          expressionId={expression.id}
+        <AvatarRenderer
+          pose={pose}
           theme={status?.settings.theme}
           variant="oled"
         />
@@ -36,11 +41,14 @@ export default function ExpressionCard({ expression }: ExpressionCardProps) {
       </div>
       <button
         type="button"
-        className={cn('nova-btn-primary w-full min-h-[44px]', active && 'border-nova-cyan/50')}
+        className={cn('nova-btn-primary w-full min-h-[44px] touch-manipulation', active && 'border-nova-cyan/50')}
         onClick={() => setExpression(expression.id)}
       >
         {active ? 'Actief' : 'Activeren'}
       </button>
+      {status?.settings.autonomousAvatar ? (
+        <p className="text-[10px] text-nova-muted text-center">Handmatig activeren schakelt Autonomous uit</p>
+      ) : null}
     </article>
   );
 }

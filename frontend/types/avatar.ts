@@ -62,14 +62,24 @@ export interface AvatarAnimation {
   description: string;
 }
 
+export type AvatarPersonalityId =
+  | 'calm'
+  | 'professional'
+  | 'friendly'
+  | 'funny'
+  | 'energetic'
+  | 'minimal';
+
 export interface AvatarSettings {
   name: string;
   voice: string;
   personality: string;
+  personalityId: AvatarPersonalityId;
   animationSpeed: AvatarSpeed;
   blinkFrequency: AvatarLevel;
   expressionIntensity: AvatarLevel;
   theme: AvatarTheme;
+  autonomousAvatar: boolean;
 }
 
 export type AutoEmotionMap = Record<AutoEmotionId, boolean>;
@@ -100,6 +110,7 @@ export interface AvatarStatus {
   settings: AvatarSettings;
   autoEmotions: AutoEmotionMap;
   lastUpdated: string;
+  engineEnabled?: boolean;
 }
 
 export interface AvatarPlayPayload {

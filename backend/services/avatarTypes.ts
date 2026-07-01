@@ -49,14 +49,24 @@ export type AutoEmotionId =
   | 'timer_afgelopen'
   | 'waarschuwing';
 
+export type AvatarPersonalityId =
+  | 'calm'
+  | 'professional'
+  | 'friendly'
+  | 'funny'
+  | 'energetic'
+  | 'minimal';
+
 export interface AvatarSettings {
   name: string;
   voice: string;
   personality: string;
+  personalityId?: AvatarPersonalityId;
   animationSpeed: AvatarSpeed;
   blinkFrequency: AvatarLevel;
   expressionIntensity: AvatarLevel;
   theme: AvatarTheme;
+  autonomousAvatar?: boolean;
 }
 
 export type AutoEmotionMap = Record<AutoEmotionId, boolean>;

@@ -6,9 +6,6 @@ import type {
   AvatarSettings,
   AvatarStatus,
   AutoEmotionMap,
-  AvatarSpeed,
-  AvatarLevel,
-  AvatarTheme,
 } from './avatarTypes';
 
 const EXPRESSION_LABELS: Record<AvatarExpressionId, string> = {
@@ -63,11 +60,13 @@ const DEFAULT_HARDWARE: AvatarHardwareStatus = {
 const DEFAULT_SETTINGS: AvatarSettings = {
   name: 'N.O.V.A.',
   voice: 'Vrouw',
-  personality: 'Vriendelijk',
+  personality: 'Friendly',
+  personalityId: 'friendly',
   animationSpeed: 'normal',
   blinkFrequency: 'normal',
   expressionIntensity: 'normal',
   theme: 'classic',
+  autonomousAvatar: true,
 };
 
 const DEFAULT_AUTO_EMOTIONS: AutoEmotionMap = {

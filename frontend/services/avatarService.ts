@@ -131,19 +131,22 @@ export const avatarService = {
     return { success: true, message: 'OLED verbinding OK (lokaal mock)' };
   },
 
-  async updateSettings(settings: Partial<AvatarSettings>): Promise<AvatarStatus> {
+  async updateSettings(partial: Partial<AvatarSettings>): Promise<AvatarStatus> {
     const data = await apiFetch<AvatarStatus>('/api/avatar/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ settings }),
+      body: JSON.stringify({ settings: partial }),
     });
     if (data) {
-      localStatus = data;
-      return data;
+      localStatus = {
+        ...data,
+        settings: { ...DEFAULT_AVATAR_SETTINGS, ...data.settings },
+      };
+      return structuredClone(localStatus);
     }
     localStatus = {
       ...localStatus,
-      settings: { ...localStatus.settings, ...settings },
+      settings: { ...DEFAULT_AVATAR_SETTINGS, ...localStatus.settings, ...partial },
       lastUpdated: new Date().toISOString(),
     };
     return structuredClone(localStatus);
