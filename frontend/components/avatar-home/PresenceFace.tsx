@@ -29,6 +29,7 @@ function PresenceFaceAnimated({
   faceDetected,
 }: PresenceFaceProps) {
   const search = useRef(0);
+  const frame = useRef(0);
   const [gaze, setGaze] = useState({ x: 0, y: 0 });
   const sx = useRef(0);
   const sy = useRef(0);
@@ -47,7 +48,10 @@ function PresenceFaceAnimated({
         : Math.cos(search.current * 0.65) * 4 + my * 0.4;
       sx.current += (tx - sx.current) * 0.07;
       sy.current += (ty - sy.current) * 0.07;
-      setGaze({ x: sx.current, y: sy.current });
+      frame.current += 1;
+      if (frame.current % 2 === 0) {
+        setGaze({ x: sx.current, y: sy.current });
+      }
     });
     return stop;
   }, [faceDetected, faceX, faceY, micro?.lookX, micro?.lookY]);

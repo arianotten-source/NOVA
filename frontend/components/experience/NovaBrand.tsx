@@ -1,11 +1,13 @@
+import NovaAvatarMark from '@/lib/branding/NovaAvatarMark';
+
 export default function NovaBrand() {
   return (
-    <div className="flex items-center gap-2 select-none">
+    <div className="flex items-center gap-2.5 select-none">
       <div
-        className="w-8 h-8 rounded-lg border border-nova-blue/40 bg-nova-blue/10 flex items-center justify-center"
-        style={{ boxShadow: '0 0 16px rgba(0, 212, 255, 0.2)' }}
+        className="w-8 h-8 rounded-xl border border-nova-cyan/30 bg-[#060a14] flex items-center justify-center overflow-hidden p-1"
+        style={{ boxShadow: '0 0 16px rgba(94, 234, 212, 0.2)' }}
       >
-        <span className="text-nova-cyan text-xs font-bold">N</span>
+        <NovaAvatarMark className="w-full h-full" smile={0.5} glow={0.3} aria-hidden />
       </div>
       <span
         className="text-sm font-bold tracking-[0.2em] text-nova-cyan"

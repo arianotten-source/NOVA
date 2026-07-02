@@ -1,7 +1,7 @@
 export default function HomeLoading({ message = 'N.O.V.A. wordt gestart...' }: { message?: string }) {
   return (
     <div
-      className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-[#04060e]/90 backdrop-blur-sm"
+      className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-[#04060e]/35 backdrop-blur-[2px] pointer-events-none"
       role="status"
       aria-live="polite"
     >

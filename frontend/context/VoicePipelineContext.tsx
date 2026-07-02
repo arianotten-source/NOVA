@@ -89,7 +89,6 @@ export function VoicePipelineProvider({ children }: { children: React.ReactNode 
 
     return () => {
       unsub();
-      voiceEngineV2.destroy();
     };
   }, [client, setVoiceSignals, setThinking, setSpeaking]);
 

@@ -27,6 +27,7 @@ export interface VoiceSnapshot {
   wakeWordDetected: boolean;
   emotion: string;
   thinkingSnapshot: ThinkingSnapshot;
+  displayText: string | null;
 }
 
 export const VOICE_V2 = {

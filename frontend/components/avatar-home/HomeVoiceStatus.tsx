@@ -11,10 +11,11 @@ const STATE_LABEL: Partial<Record<VoiceState, string>> = {
 };
 
 export default function HomeVoiceStatus() {
-  const { voiceState, interimText, finalText, error, thinkingSnapshot } = useVoicePipeline();
+  const { voiceState, interimText, finalText, error, thinkingSnapshot, snapshot } = useVoicePipeline();
   const display =
     interimText ||
     (voiceState === VoiceState.SPEAKING ? finalText : '') ||
+    snapshot.displayText ||
     (voiceState === VoiceState.THINKING || voiceState === VoiceState.PROCESSING
       ? thinkingSnapshot.preface
       : '');

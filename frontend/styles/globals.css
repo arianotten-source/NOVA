@@ -120,6 +120,14 @@
   .avatar-anim-happy .avatar-breathe { animation-duration: 2.5s; }
   .avatar-anim-blink { animation: avatar-blink-keyframes 1.2s ease-in-out 2; }
 
+  .nova-splash-avatar {
+    transition: filter 0.6s ease, opacity 0.4s ease;
+  }
+
+  .nova-splash-avatar ellipse {
+    transition: ry 0.55s cubic-bezier(0.34, 1.2, 0.64, 1);
+  }
+
   .pb-nav-bottom {
     padding-bottom: calc(4rem + env(safe-area-inset-bottom));
   }

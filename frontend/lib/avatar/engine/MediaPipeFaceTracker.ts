@@ -19,26 +19,35 @@ export class MediaPipeFaceTracker {
   async init(): Promise<boolean> {
     if (this.ready) return true;
     try {
-      const { FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
-      const vision = await FilesetResolver.forVisionTasks(WASM_CDN);
-
-      for (const delegate of ['GPU', 'CPU'] as const) {
-        try {
-          this.landmarker = await FaceLandmarker.createFromOptions(vision, {
-            baseOptions: { modelAssetPath: MODEL_URL, delegate },
-            runningMode: 'VIDEO',
-            numFaces: 1,
-            outputFaceBlendshapes: false,
-            outputFacialTransformationMatrixes: false,
-          });
-          this.ready = true;
-          return true;
-        } catch {
-          /* try CPU */
-        }
-      }
+      const loaded = await Promise.race([
+        this.loadLandmarker(),
+        new Promise<false>((resolve) => window.setTimeout(() => resolve(false), 8000)),
+      ]);
+      return loaded === true;
     } catch (err) {
       console.warn('[MediaPipe] init failed', err);
+      return false;
+    }
+  }
+
+  private async loadLandmarker(): Promise<boolean> {
+    const { FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
+    const vision = await FilesetResolver.forVisionTasks(WASM_CDN);
+
+    for (const delegate of ['GPU', 'CPU'] as const) {
+      try {
+        this.landmarker = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: MODEL_URL, delegate },
+          runningMode: 'VIDEO',
+          numFaces: 1,
+          outputFaceBlendshapes: false,
+          outputFacialTransformationMatrixes: false,
+        });
+        this.ready = true;
+        return true;
+      } catch {
+        /* try CPU */
+      }
     }
     return false;
   }

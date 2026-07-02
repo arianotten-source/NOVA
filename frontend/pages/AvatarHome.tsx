@@ -26,10 +26,10 @@ function AvatarHomeContent() {
     cameraSignals.permission === 'granted' &&
     cameraSignals.available;
 
-  const isStarting = loading || !engineSnapshot;
+  const isStarting = loading;
 
   return (
-    <div className="relative flex flex-col h-[100dvh] w-full overflow-hidden">
+    <div className="relative flex flex-col h-[100dvh] w-full overflow-hidden bg-[#04060e]">
       <HomeBackground glow={presence?.energy ?? 0.5} />
 
       {isStarting && <HomeLoading />}
@@ -96,9 +96,20 @@ function AvatarHomeContent() {
 }
 
 export default function AvatarHome() {
+  const fallbackPose = useAvatarPoseFallback('neutraal');
+
   return (
     <VoicePipelineProvider>
-      <AvatarHomeContent />
+      <EngineErrorBoundary
+        name="Avatar Home"
+        fallback={
+          <div className="h-[100dvh] w-full flex items-center justify-center bg-[#04060e]">
+            <PresenceFaceStatic pose={fallbackPose} state="idle" />
+          </div>
+        }
+      >
+        <AvatarHomeContent />
+      </EngineErrorBoundary>
     </VoicePipelineProvider>
   );
 }

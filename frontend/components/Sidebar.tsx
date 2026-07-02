@@ -1,15 +1,15 @@
 import { NavLink } from 'react-router-dom';
-import { Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { navItems } from '@/components/navItems';
+import NovaAvatarMark from '@/lib/branding/NovaAvatarMark';
 
 export default function Sidebar() {
   return (
     <aside className="hidden md:flex flex-shrink-0 bg-nova-dark border-r border-nova-border flex-col md:w-[4.5rem] xl:w-56">
       <NavLink to="/" className="p-3 xl:p-5 border-b border-nova-border block hover:bg-nova-panel/30 transition-colors">
         <div className="flex items-center gap-3 justify-center xl:justify-start">
-          <div className="w-9 h-9 rounded-lg bg-nova-blue/10 border border-nova-blue/30 flex items-center justify-center shadow-neon flex-shrink-0">
-            <Cpu className="w-5 h-5 text-nova-blue" />
+          <div className="w-9 h-9 rounded-xl bg-[#060a14] border border-nova-cyan/30 flex items-center justify-center shadow-neon flex-shrink-0 p-1.5 overflow-hidden">
+            <NovaAvatarMark className="w-full h-full" smile={0.5} glow={0.25} aria-hidden />
           </div>
           <div className="hidden xl:block min-w-0">
             <h1 className="text-sm font-bold tracking-wider text-nova-cyan">N.O.V.A.</h1>

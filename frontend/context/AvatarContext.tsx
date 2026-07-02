@@ -91,6 +91,19 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const lastActivityRef = useRef(Date.now());
   const rafStopRef = useRef<(() => void) | null>(null);
+  const voiceSignalsRef = useRef(voiceSignals);
+  const cameraSignalsRef = useRef(cameraSignals);
+  const statusRef = useRef(status);
+  const presenceProfileRef = useRef(presenceProfile);
+  const manualExpressionRef = useRef(manualExpressionId);
+  const manualAnimationRef = useRef(manualAnimationId);
+
+  voiceSignalsRef.current = voiceSignals;
+  cameraSignalsRef.current = cameraSignals;
+  statusRef.current = status;
+  presenceProfileRef.current = presenceProfile;
+  manualExpressionRef.current = manualExpressionId;
+  manualAnimationRef.current = manualAnimationId;
 
   const stats = useSystemStats();
   const { alerts, devices } = useSensors(30000);
@@ -213,32 +226,42 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
     [status?.settings]
   );
 
+  const systemSignalsRef = useRef(systemSignals);
+  const environmentRef = useRef(environment);
+  const presenceSettingsRef = useRef(presenceSettings);
+  systemSignalsRef.current = systemSignals;
+  environmentRef.current = environment;
+  presenceSettingsRef.current = presenceSettings;
+
   useEffect(() => {
     const stop = createSafeRafLoop(() => {
       const now = Date.now();
-      const settings = status?.settings;
+      const settings = statusRef.current?.settings;
       const autonomous = settings?.autonomousAvatar ?? true;
+      const presenceSettings = presenceSettingsRef.current;
 
       try {
         const snapshot = avatarEngine.tick({
           autonomous,
           personality: settings?.personalityId ?? 'friendly',
           theme: settings?.theme ?? 'classic',
-          voice: voiceSignals,
-          camera: cameraSignals,
-          system: systemSignals,
-          manualExpressionId: autonomous ? null : manualExpressionId,
-          manualAnimationId: autonomous ? null : manualAnimationId,
+          voice: voiceSignalsRef.current,
+          camera: cameraSignalsRef.current,
+          system: systemSignalsRef.current,
+          manualExpressionId: autonomous ? null : manualExpressionRef.current,
+          manualAnimationId: autonomous ? null : manualAnimationRef.current,
           lastActivityAt: lastActivityRef.current,
           now,
-          presenceProfile: presenceSettings.presenceMemoryEnabled ? presenceProfile : DEFAULT_PRESENCE_PROFILE,
+          presenceProfile: presenceSettings.presenceMemoryEnabled
+            ? presenceProfileRef.current
+            : DEFAULT_PRESENCE_PROFILE,
           presenceSettings,
-          environment,
+          environment: environmentRef.current,
         });
 
         setEngineSnapshot(snapshot);
 
-        if (status && autonomous) {
+        if (statusRef.current && autonomous) {
           const expr = getExpressionById(snapshot.pose.expressionId);
           setStatus((prev) =>
             prev
@@ -262,17 +285,7 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
       stop();
       rafStopRef.current = null;
     };
-  }, [
-    status?.settings,
-    voiceSignals,
-    cameraSignals,
-    systemSignals,
-    manualExpressionId,
-    manualAnimationId,
-    presenceProfile,
-    presenceSettings,
-    environment,
-  ]);
+  }, []);
 
   const setVoiceSignals = useCallback((partial: Partial<VoiceSignals>) => {
     setVoiceSignalsState((prev) => {

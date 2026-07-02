@@ -68,8 +68,11 @@ export class VoiceEngineV2 {
   private intentionalFinalize = false;
   private bypassHotword = false;
   private pendingSmartCall: SmartCallRequest | null = null;
+  private initialized = false;
+  private lastDisplayText: string | null = null;
 
   init(): boolean {
+    if (this.initialized) return true;
     if (!speechRecognitionManager.init()) return false;
 
     speechRecognitionManager.setHandlers({
@@ -81,6 +84,7 @@ export class VoiceEngineV2 {
       },
     });
 
+    this.initialized = true;
     return true;
   }
 
@@ -111,6 +115,7 @@ export class VoiceEngineV2 {
       wakeWordDetected: this.wakeWordDetected,
       emotion: this.emotion,
       thinkingSnapshot: this.thinkingSnapshot,
+      displayText: this.lastDisplayText,
     };
   }
 
@@ -558,23 +563,43 @@ export class VoiceEngineV2 {
 
   private async speakShortReply(text: string) {
     this.muteMic();
-    await this.transition(VoiceState.SPEAKING);
+    this.lastDisplayText = text;
     lipSyncEngine.setText(text);
+
+    let audioStarted = false;
     await speakText(text, {
       onStart: () => {
+        audioStarted = true;
         this.muteMic();
         setGlobalSpeaking(true);
+        void this.transition(VoiceState.SPEAKING);
         this.avatarBridge?.setSpeaking(true);
         this.syncAvatar();
       },
+      onError: () => {
+        voiceLog.emit('Fout', 'TTS: audio niet beschikbaar — tekst getoond');
+      },
       onEnd: async () => {
         setGlobalSpeaking(false);
+        lipSyncEngine.reset();
         this.avatarBridge?.setSpeaking(false);
         this.syncAvatar();
         await this.transition(VoiceState.WAITING);
         this.scheduleWaitToIdle();
       },
     });
+
+    if (!audioStarted) {
+      await this.transition(VoiceState.IDLE);
+      this.scheduleWaitToIdle();
+    }
+  }
+
+  private releaseAi(gen: number) {
+    if (gen === this.sessionGen) {
+      this.aiInFlight = false;
+      this.abortController = null;
+    }
   }
 
   private async runThinkingAndSpeak(text: string) {
@@ -603,10 +628,16 @@ export class VoiceEngineV2 {
 
     try {
       await waitThinkingMinimum(thinkStarted, thinkingEngine.getMinThinkMs(), abort.signal);
-      if (gen !== this.sessionGen || abort.signal.aborted) return;
+      if (gen !== this.sessionGen || abort.signal.aborted) {
+        this.releaseAi(gen);
+        return;
+      }
 
       const { reply, connected, latencyMs } = await aiPromise;
-      if (gen !== this.sessionGen || abort.signal.aborted) return;
+      if (gen !== this.sessionGen || abort.signal.aborted) {
+        this.releaseAi(gen);
+        return;
+      }
 
       thinkingEngine.setAiComplete(latencyMs);
       this.aiConnected = connected;
@@ -624,44 +655,60 @@ export class VoiceEngineV2 {
       if (preface) fullReply = `${preface} ${fullReply}`;
 
       await thinkingEngine.prepareSpeech();
-      if (gen !== this.sessionGen || abort.signal.aborted) return;
+      if (gen !== this.sessionGen || abort.signal.aborted) {
+        this.releaseAi(gen);
+        return;
+      }
 
       this.muteMic();
-      await this.transition(VoiceState.SPEAKING);
+      this.lastDisplayText = fullReply;
       lipSyncEngine.setText(fullReply);
 
       const tts = thinkingEngine.getTtsModifiers();
+      let audioStarted = false;
 
       await speakText(fullReply, {
         rate: tts.rate,
         pitch: tts.pitch,
         onStart: () => {
+          audioStarted = true;
           this.muteMic();
           setGlobalSpeaking(true);
+          void this.transition(VoiceState.SPEAKING);
           thinkingEngine.complete();
           this.thinkingSnapshot = thinkingEngine.getSnapshot();
           this.avatarBridge?.setThinking(false);
           this.avatarBridge?.setSpeaking(true);
           this.syncAvatar();
         },
+        onError: () => {
+          voiceLog.emit('Fout', 'TTS: audio niet beschikbaar — tekst getoond');
+        },
         onEnd: async () => {
           setGlobalSpeaking(false);
           lipSyncEngine.reset();
           conversationMemory.add(text, reply);
-          this.aiInFlight = false;
-          this.abortController = null;
+          this.releaseAi(gen);
           this.avatarBridge?.setSpeaking(false);
           await this.transition(VoiceState.WAITING);
           this.scheduleWaitToIdle();
         },
       });
+
+      if (!audioStarted) {
+        this.releaseAi(gen);
+        await this.transition(VoiceState.IDLE);
+        this.scheduleWaitToIdle();
+      }
     } catch (err) {
-      if ((err as Error).name === 'AbortError' || gen !== this.sessionGen) return;
+      if ((err as Error).name === 'AbortError' || gen !== this.sessionGen) {
+        this.releaseAi(gen);
+        return;
+      }
       this.error = 'AI of spraakuitvoer mislukt';
       voiceLog.emit('Fout', String(err));
       thinkingEngine.cancel();
-      this.aiInFlight = false;
-      this.abortController = null;
+      this.releaseAi(gen);
       await this.transition(VoiceState.IDLE);
       this.scheduleWaitToIdle();
     }

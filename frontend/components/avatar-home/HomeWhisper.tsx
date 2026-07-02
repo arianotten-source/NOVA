@@ -1,10 +1,10 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAvatar } from '@/context/AvatarContext';
-import { useIdentity } from '@/context/IdentityContext';
+import { useIdentityOptional } from '@/context/IdentityContext';
 
 export default function HomeWhisper() {
   const { engineSnapshot } = useAvatar();
-  const { snapshot, careAlert } = useIdentity();
+  const { snapshot, careAlert } = useIdentityOptional();
   const text =
     careAlert ?? snapshot.greeting ?? engineSnapshot?.presence?.whisper;
 

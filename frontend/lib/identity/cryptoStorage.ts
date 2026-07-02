@@ -1,5 +1,14 @@
 const KEY_STORAGE = 'nova_identity_device_key';
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
 async function getOrCreateKey(): Promise<CryptoKey> {
   const stored = localStorage.getItem(KEY_STORAGE);
   if (stored) {
@@ -8,7 +17,7 @@ async function getOrCreateKey(): Promise<CryptoKey> {
   }
   const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
   const exported = new Uint8Array(await crypto.subtle.exportKey('raw', key));
-  localStorage.setItem(KEY_STORAGE, btoa(String.fromCharCode(...exported)));
+  localStorage.setItem(KEY_STORAGE, bytesToBase64(exported));
   return key;
 }
 
@@ -21,7 +30,7 @@ export async function encryptPayload(json: string): Promise<string> {
   const combined = new Uint8Array(iv.length + cipher.byteLength);
   combined.set(iv, 0);
   combined.set(new Uint8Array(cipher), iv.length);
-  return btoa(String.fromCharCode(...combined));
+  return bytesToBase64(combined);
 }
 
 export async function decryptPayload(payload: string): Promise<string> {

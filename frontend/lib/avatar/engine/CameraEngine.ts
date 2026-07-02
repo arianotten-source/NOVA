@@ -26,6 +26,8 @@ export class CameraEngine {
     personKnown: false,
   };
   private listeners = new Set<(s: CameraSignals) => void>();
+  private lastEmitAt = 0;
+  private emitScheduled = false;
 
   getSignals(): CameraSignals {
     return { ...this.signals };
@@ -36,6 +38,13 @@ export class CameraEngine {
   }
 
   setIdentityOverlay(personId: string | null, personName: string | null, known: boolean) {
+    if (
+      this.signals.personId === personId &&
+      this.signals.personName === personName &&
+      this.signals.personKnown === known
+    ) {
+      return;
+    }
     this.signals = {
       ...this.signals,
       personId,
@@ -53,6 +62,23 @@ export class CameraEngine {
   private emit() {
     const snap = this.getSignals();
     this.listeners.forEach((fn) => fn(snap));
+  }
+
+  /** Throttle React updates — internal signals still update every frame */
+  private emitThrottled() {
+    const now = performance.now();
+    if (now - this.lastEmitAt >= 120) {
+      this.lastEmitAt = now;
+      this.emit();
+      return;
+    }
+    if (this.emitScheduled) return;
+    this.emitScheduled = true;
+    window.setTimeout(() => {
+      this.emitScheduled = false;
+      this.lastEmitAt = performance.now();
+      this.emit();
+    }, 120);
   }
 
   async requestAccess(): Promise<CameraSignals> {
@@ -74,7 +100,11 @@ export class CameraEngine {
       this.video.muted = true;
       this.video.playsInline = true;
       this.video.setAttribute('playsinline', 'true');
-      await this.video.play();
+      try {
+        await this.video.play();
+      } catch {
+        console.warn('[CameraEngine] video.play() failed — tracking may be delayed');
+      }
 
       this.signals = {
         available: true,
@@ -89,10 +119,12 @@ export class CameraEngine {
       };
 
       this.mediaPipe = new MediaPipeFaceTracker();
-      this.useMediaPipe = await this.mediaPipe.init();
-      if (!this.useMediaPipe) {
-        console.warn('[CameraEngine] MediaPipe unavailable — brightness fallback');
-      }
+      void this.mediaPipe.init().then((ok) => {
+        this.useMediaPipe = ok;
+        if (!ok) {
+          console.warn('[CameraEngine] MediaPipe unavailable — brightness fallback');
+        }
+      });
 
       this.startAnalysis();
       this.emit();
@@ -169,7 +201,7 @@ export class CameraEngine {
                 faceY: this.smoothY,
               };
             }
-            this.emit();
+            this.emitThrottled();
           }
         } else if (ctx) {
           ctx.drawImage(this.video, 0, 0, w, h);
@@ -211,7 +243,7 @@ export class CameraEngine {
             faceX: Math.max(-1, Math.min(1, this.smoothX)),
             faceY: Math.max(-1, Math.min(1, this.smoothY)),
           };
-          this.emit();
+          this.emitThrottled();
         }
       } catch {
         /* frame skip */

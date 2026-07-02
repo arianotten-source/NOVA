@@ -7,21 +7,26 @@ interface SplashGateProps {
   children: React.ReactNode;
 }
 
+function isMobileDevice() {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
 export default function SplashGate({ children }: SplashGateProps) {
   const [showSplash, setShowSplash] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     try {
-      setShowSplash(!sessionStorage.getItem(SPLASH_KEY));
+      const seen = sessionStorage.getItem(SPLASH_KEY);
+      setShowSplash(!seen);
     } catch {
-      setShowSplash(true);
+      setShowSplash(false);
     }
   }, []);
 
   useEffect(() => {
     if (!showSplash) return;
+    const duration = isMobileDevice() ? 1600 : 1800;
     const t = window.setTimeout(() => {
       try {
         sessionStorage.setItem(SPLASH_KEY, '1');
@@ -29,17 +34,9 @@ export default function SplashGate({ children }: SplashGateProps) {
         /* ignore */
       }
       setShowSplash(false);
-    }, 2000);
+    }, duration);
     return () => clearTimeout(t);
   }, [showSplash]);
-
-  if (!mounted) {
-    return (
-      <div className="h-[100dvh] w-full flex items-center justify-center bg-[#04060e] text-nova-cyan text-sm">
-        N.O.V.A. wordt gestart...
-      </div>
-    );
-  }
 
   return (
     <>

@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAvatar } from '@/context/AvatarContext';
 import { useClientOnly } from '@/hooks/useClientOnly';
 import { cameraEngine } from '@/lib/avatar/engine/CameraEngine';
@@ -26,7 +27,6 @@ import type {
 } from '@/lib/identity/types';
 import { DEFAULT_IDENTITY_SETTINGS } from '@/lib/identity/types';
 import { landmarksToDescriptor } from '@/lib/identity/faceDescriptor';
-import { speakText } from '@/lib/voice/textToSpeech';
 import { voiceState } from '@/lib/voice/voiceState';
 import { voiceEngineV2 } from '@/lib/voice/v2/VoiceEngineV2';
 import { VoiceState } from '@/lib/voice/v2/types';
@@ -51,21 +51,52 @@ interface IdentityContextValue {
 
 const IdentityContext = createContext<IdentityContextValue | null>(null);
 
+const EMPTY_IDENTITY: IdentityContextValue = {
+  snapshot: identityEngine.getSnapshot(),
+  enrollment: identityEngine.getEnrollment(),
+  settings: DEFAULT_IDENTITY_SETTINGS,
+  persons: [],
+  careAlert: null,
+  acceptConsent: () => {},
+  setEnrollmentFirstName: () => {},
+  setEnrollmentLastName: () => {},
+  setEnrollmentRelationship: () => {},
+  completeEnrollment: async () => {},
+  cancelEnrollment: () => {},
+  startEnrollment: () => {},
+  removePerson: async () => {},
+  updateSettings: async () => {},
+  refreshPersons: async () => {},
+};
+
 export function IdentityProvider({ children }: { children: React.ReactNode }) {
   const client = useClientOnly();
+  const location = useLocation();
   const { cameraSignals, status } = useAvatar();
   const [snapshot, setSnapshot] = useState<IdentitySnapshot>(identityEngine.getSnapshot());
   const [enrollment, setEnrollment] = useState<EnrollmentDraft>(identityEngine.getEnrollment());
   const [settings, setSettings] = useState<IdentitySettings>(DEFAULT_IDENTITY_SETTINGS);
   const [persons, setPersons] = useState<PersonProfile[]>([]);
   const [careAlert, setCareAlert] = useState<string | null>(null);
-  const lastSpokenGreeting = useRef<string | null>(null);
   const lastInteractionAt = useRef(Date.now());
+  const cameraSignalsRef = useRef(cameraSignals);
+  const settingsRef = useRef(settings);
+  const statusRef = useRef(status);
+
+  cameraSignalsRef.current = cameraSignals;
+  settingsRef.current = settings;
+  statusRef.current = status;
+
+  const isAvatarHome = location.pathname === '/' || location.pathname === '';
 
   const refreshPersons = useCallback(async () => {
-    const store = await loadIdentityStore();
-    setSettings(store.settings);
-    setPersons(store.persons);
+    try {
+      const store = await loadIdentityStore();
+      setSettings(store.settings);
+      setPersons(store.persons);
+    } catch (err) {
+      console.warn('[Identity] load failed', err);
+    }
   }, []);
 
   useEffect(() => {
@@ -93,14 +124,19 @@ export function IdentityProvider({ children }: { children: React.ReactNode }) {
   }, [client]);
 
   useEffect(() => {
-    if (!client) return;
-    const id = window.setInterval(() => {
-      const cameraOn =
-        Boolean(status?.settings.cameraEnabled) &&
-        cameraSignals.permission === 'granted' &&
-        cameraSignals.available;
+    if (!client || !isAvatarHome) return;
 
-      if (!cameraOn || !settings.faceRecognitionEnabled) {
+    const id = window.setInterval(() => {
+      const cam = cameraSignalsRef.current;
+      const cfg = settingsRef.current;
+      const st = statusRef.current;
+
+      const cameraOn =
+        Boolean(st?.settings.cameraEnabled) &&
+        cam.permission === 'granted' &&
+        cam.available;
+
+      if (!cameraOn || !cfg.faceRecognitionEnabled) {
         cameraEngine.setIdentityOverlay(null, null, false);
         return;
       }
@@ -109,11 +145,11 @@ export function IdentityProvider({ children }: { children: React.ReactNode }) {
 
       void identityCareEngine
         .tick({
-          faceDetected: cameraSignals.faceDetected,
+          faceDetected: cam.faceDetected,
           landmarks: cameraEngine.getLastLandmarks(),
           inactiveMs: Date.now() - lastInteractionAt.current,
-          faceRecognitionEnabled: settings.faceRecognitionEnabled,
-          autoGreet: Boolean(status?.settings.initiativeEnabled) && voiceIdle && !voiceState.isSpeaking,
+          faceRecognitionEnabled: cfg.faceRecognitionEnabled,
+          autoGreet: Boolean(st?.settings.initiativeEnabled) && voiceIdle && !voiceState.isSpeaking,
         })
         .then(() => {
           const snap = identityEngine.getSnapshot();
@@ -123,25 +159,14 @@ export function IdentityProvider({ children }: { children: React.ReactNode }) {
             snap.isKnown
           );
           setCareAlert(identityCareEngine.getCareAlert());
+        })
+        .catch((err) => {
+          console.warn('[Identity] tick failed', err);
         });
-    }, 450);
+    }, 600);
 
     return () => clearInterval(id);
-  }, [client, cameraSignals, status?.settings, settings.faceRecognitionEnabled]);
-
-  useEffect(() => {
-    const greeting = snapshot.greeting;
-    if (!greeting || greeting === lastSpokenGreeting.current) return;
-    if (voiceEngineV2.getSnapshot().state !== VoiceState.IDLE || voiceState.isSpeaking) return;
-
-    lastSpokenGreeting.current = greeting;
-    void speakText(greeting, {
-      onEnd: () => {
-        identityEngine.clearGreeting();
-        lastSpokenGreeting.current = null;
-      },
-    });
-  }, [snapshot.greeting]);
+  }, [client, isAvatarHome]);
 
   const acceptConsent = useCallback(() => identityEngine.acceptConsent(), []);
   const setEnrollmentFirstName = useCallback((name: string) => identityEngine.setEnrollmentFirstName(name), []);
@@ -154,24 +179,36 @@ export function IdentityProvider({ children }: { children: React.ReactNode }) {
   const startEnrollment = useCallback(() => identityEngine.startEnrollment(), []);
 
   const completeEnrollment = useCallback(async () => {
-    const desc = cameraEngine.getLastLandmarks();
-    const descriptor = desc?.length ? landmarksToDescriptor(desc) : undefined;
-    await identityEngine.completeEnrollment(descriptor);
-    await refreshPersons();
+    try {
+      const desc = cameraEngine.getLastLandmarks();
+      const descriptor = desc?.length ? landmarksToDescriptor(desc) : undefined;
+      await identityEngine.completeEnrollment(descriptor);
+      await refreshPersons();
+    } catch (err) {
+      console.warn('[Identity] enrollment failed', err);
+    }
   }, [refreshPersons]);
 
   const removePerson = useCallback(
     async (id: string) => {
-      await identityEngine.removePerson(id);
-      await refreshPersons();
+      try {
+        await identityEngine.removePerson(id);
+        await refreshPersons();
+      } catch (err) {
+        console.warn('[Identity] remove failed', err);
+      }
     },
     [refreshPersons]
   );
 
   const updateSettings = useCallback(
     async (partial: Partial<IdentitySettings>) => {
-      await updateIdentitySettings(partial);
-      await refreshPersons();
+      try {
+        await updateIdentitySettings(partial);
+        await refreshPersons();
+      } catch (err) {
+        console.warn('[Identity] settings update failed', err);
+      }
     },
     [refreshPersons]
   );
@@ -201,4 +238,9 @@ export function useIdentity() {
   const ctx = useContext(IdentityContext);
   if (!ctx) throw new Error('useIdentity must be used within IdentityProvider');
   return ctx;
+}
+
+/** Safe variant — never throws, returns inert defaults */
+export function useIdentityOptional() {
+  return useContext(IdentityContext) ?? EMPTY_IDENTITY;
 }
