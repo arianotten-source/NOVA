@@ -8,14 +8,18 @@ import { AnimationEngine } from './AnimationEngine';
 import { ContextEngine } from './ContextEngine';
 import { VoiceEngine } from './VoiceEngine';
 import { IdleEngine } from './IdleEngine';
+import { EyeEngine } from './EyeEngine';
 import { buildRenderPose } from './EmotionEngine';
 import { emptyMood, lerpMood, addNoise, normalizeBlend } from './MoodBlend';
 import { getStateDef, normalizeMood } from './stateMachine';
 import { resolvePersonality } from './personalities';
 import { hardwareBridge } from './HardwareBridge';
+import { futureHooks } from '@/lib/hooks/futureHooks';
 import { presenceEngine } from '../presence/PresenceEngine';
 import { thinkingEngine } from '@/lib/thinking/ThinkingEngine';
 import { lipSyncEngine } from '@/lib/voice/v2/lipSync';
+import { moodForEmotion } from '@/lib/thinking/thinkingEmotions';
+import type { ResponseEmotion } from '@/lib/thinking/thinkingEmotions';
 import {
   DEFAULT_PRESENCE_PROFILE,
   DEFAULT_PRESENCE_SETTINGS,
@@ -25,6 +29,7 @@ export class AvatarEngine {
   private context = new ContextEngine();
   private voice = new VoiceEngine();
   private idle = new IdleEngine();
+  private eyes = new EyeEngine();
   private animation = new AnimationEngine();
 
   private currentState: AvatarStateId = 'idle';
@@ -38,6 +43,8 @@ export class AvatarEngine {
   private frameCount = 0;
   private fpsAccum = 0;
   private autonomous = true;
+  private replyEmotionUntil = 0;
+  private lastWakeActivation = 0;
 
   pushContext(type: Parameters<ContextEngine['push']>[0], now: number, priority?: number) {
     this.context.push(type, now, priority);
@@ -141,6 +148,21 @@ export class AvatarEngine {
     }
     this.mood = normalizeBlend(this.mood);
 
+    if (input.voice.wakeActivation > 0.8 && this.lastWakeActivation < 0.5) {
+      this.eyes.triggerWake(input.now);
+    }
+    this.lastWakeActivation = input.voice.wakeActivation;
+
+    if (input.voice.replyEmotion && input.voice.replyEmotion !== 'neutral') {
+      const mood = moodForEmotion(input.voice.replyEmotion as ResponseEmotion);
+      this.targetMood = mood;
+      this.replyEmotionUntil = input.now + 4500;
+    }
+
+    if (input.now > this.replyEmotionUntil) {
+      /* emotion decay handled via mood lerp */
+    }
+
     const animFrame = this.animation.update(input.now);
     let idleOut = {
       action: null as string | null,
@@ -157,6 +179,8 @@ export class AvatarEngine {
       idleOut = this.idle.update(input.now, personality, inactiveMs);
       if (idleOut.isBlinking) this.animation.playOneShot('blink', input.now);
     }
+
+    const eyeOut = this.eyes.update(input.now, this.currentState);
 
     const presenceInput = {
       now: input.now,
@@ -200,30 +224,34 @@ export class AvatarEngine {
       ...basePose,
       eyeOffsetX:
         basePose.eyeOffsetX +
+        eyeOut.eyeOffsetX +
         idleOut.eyeOffsetX +
         (animFrame.headTilt ?? 0) * 0.1 +
         micro.lookX * 0.05 +
         (thinkPose?.eyeOffsetX ?? 0),
       eyeOffsetY:
         basePose.eyeOffsetY +
+        eyeOut.eyeOffsetY +
         idleOut.eyeOffsetY +
         (animFrame.eyeOffsetY ?? 0) +
         micro.lookY * 0.05 +
         micro.floatY * 0.02 +
         (thinkPose?.eyeOffsetY ?? 0),
-      pupilOffsetX: idleOut.pupilOffsetX + input.camera.faceX * 0.2 + micro.lookX * 0.08 + (thinkPose?.pupilOffsetX ?? 0),
-      pupilOffsetY: idleOut.pupilOffsetY + input.camera.faceY * 0.15 + micro.lookY * 0.08 + (thinkPose?.pupilOffsetY ?? 0),
-      headTilt: basePose.headTilt + idleOut.headTilt + (animFrame.headTilt ?? 0),
-      headNod: (animFrame.headNod ?? 0) + (idleOut.action === 'yawn' ? 3 : 0) + micro.yawnAmount * 2,
+      pupilOffsetX:
+        eyeOut.pupilOffsetX + idleOut.pupilOffsetX + input.camera.faceX * 0.2 + micro.lookX * 0.08 + (thinkPose?.pupilOffsetX ?? 0),
+      pupilOffsetY:
+        eyeOut.pupilOffsetY + idleOut.pupilOffsetY + input.camera.faceY * 0.15 + micro.lookY * 0.08 + (thinkPose?.pupilOffsetY ?? 0),
+      headTilt: basePose.headTilt + eyeOut.headTilt + idleOut.headTilt + (animFrame.headTilt ?? 0),
+      headNod: (animFrame.headNod ?? 0) + voiceOut.headNod + (idleOut.action === 'yawn' ? 3 : 0) + micro.yawnAmount * 2,
       mouthOpen: Math.max(voiceOut.mouthOpen, animFrame.mouthOpen ?? 0) + micro.sighAmount * 0.1,
-      blinkAmount: idleOut.isBlinking ? 1 : 0,
+      blinkAmount: eyeOut.isBlinking || idleOut.isBlinking ? 1 : 0,
       browRaise:
         basePose.browRaise +
         voiceOut.browRaise +
         (thinkPose?.browRaise ?? 0) -
         (micro.browLeftY + micro.browRightY) * 0.02 -
         (thinkPose?.furrow ?? 0) * 0.3,
-      eyeScale: basePose.eyeScale + voiceOut.eyeScaleBoost + (micro.pupilScale - 1) * 0.5,
+      eyeScale: basePose.eyeScale + voiceOut.eyeScaleBoost + eyeOut.eyeScaleBoost + (micro.pupilScale - 1) * 0.5,
       smileAmount: Math.min(
         1,
         Math.max(
@@ -244,7 +272,7 @@ export class AvatarEngine {
         thinkPose?.glowPulse ?? 0,
         this.currentState === 'thinking' ? 0.35 : 0
       ),
-      isBlinking: idleOut.isBlinking || micro.eyeOpenLeft < 0.2,
+      isBlinking: eyeOut.isBlinking || idleOut.isBlinking || micro.eyeOpenLeft < 0.2,
       microAnim: micro,
     };
 
@@ -253,6 +281,12 @@ export class AvatarEngine {
     }
 
     hardwareBridge.publish(pose, input.now);
+
+    if (futureHooks.robotHead) {
+      futureHooks.robotHead.setEyePosition(pose.eyeOffsetX, pose.eyeOffsetY);
+      futureHooks.robotHead.setMouthOpen(pose.mouthOpen);
+      futureHooks.robotHead.setEyelid(pose.isBlinking ? 0.2 : 1, pose.isBlinking ? 0.2 : 1);
+    }
 
     return {
       state: this.currentState,

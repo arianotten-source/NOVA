@@ -144,6 +144,7 @@ export default function HomeDebugOverlay() {
 
           <Section title="Voice / Speech">
             <Row label="State" value={STATE_LABEL[voiceState]} />
+            <Row label="Hotword" value={wakeWordListening ? 'Listening' : '—'} />
             <Row label="Mic" value={micEnabled ? 'On' : 'Off'} />
             <Row label="STT" value={recognitionActive ? 'Active' : 'Off'} />
             <Row label="Emotion" value={voiceSnapshot.emotion} />

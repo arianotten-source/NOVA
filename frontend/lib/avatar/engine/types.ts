@@ -72,6 +72,8 @@ export interface VoiceSignals {
   userTalking: boolean;
   viseme: VisemeId;
   emotion: string;
+  wakeActivation: number;
+  replyEmotion: string | null;
 }
 
 export interface CameraSignals {

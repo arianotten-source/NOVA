@@ -43,23 +43,41 @@ export class LipSyncEngine {
   private cursor = 0;
   private phase = 0;
   private viseme: VisemeId = 'neutral';
+  private jitter = 0;
+  private nextJitterAt = 0;
 
   setText(text: string) {
     this.text = text;
     this.cursor = 0;
     this.phase = 0;
     this.viseme = 'neutral';
+    this.jitter = 0;
   }
 
   tick(dt: number, energy: number): VisemeId {
     if (!this.text) return 'neutral';
-    this.phase += dt * (0.004 + energy * 0.006);
+
+    const speed = 0.0035 + energy * 0.007;
+    this.phase += dt * speed;
+
     if (this.phase >= 1) {
       this.phase = 0;
       this.cursor = Math.min(this.text.length - 1, this.cursor + 1);
-      this.viseme = charToViseme(this.text[this.cursor] ?? ' ');
+      const ch = this.text[this.cursor] ?? ' ';
+      const next = charToViseme(ch);
+      this.viseme = next === 'neutral' && Math.random() < 0.3 ? 'E' : next;
     }
+
+    if (Date.now() > this.nextJitterAt) {
+      this.jitter = (Math.random() - 0.5) * 0.15;
+      this.nextJitterAt = Date.now() + 80 + Math.random() * 120;
+    }
+
     return this.viseme;
+  }
+
+  getMouthModulation(): number {
+    return this.jitter;
   }
 
   reset() {
@@ -67,6 +85,7 @@ export class LipSyncEngine {
     this.cursor = 0;
     this.phase = 0;
     this.viseme = 'neutral';
+    this.jitter = 0;
   }
 
   getViseme() {

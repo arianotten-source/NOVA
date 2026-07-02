@@ -17,6 +17,7 @@ import { conversationMemory } from '@/lib/voice/v2/conversationMemory';
 import type { ThinkingSnapshot } from '@/lib/thinking/ThinkingEngine';
 import { thinkingEngine } from '@/lib/thinking/ThinkingEngine';
 import { isMobileDevice } from '@/lib/runtime/isMobile';
+import { requestScreenWakeLock, releaseScreenWakeLock } from '@/lib/platform/androidVoice';
 
 /** @deprecated Use VoiceState from v2 — kept for UI compatibility */
 export type VoicePhase = 'idle' | 'listening' | 'thinking' | 'generating' | 'speaking';
@@ -103,6 +104,17 @@ export function VoicePipelineProvider({ children }: { children: React.ReactNode 
       unsub();
     };
   }, [client, setVoiceSignals, setThinking, setSpeaking]);
+
+  useEffect(() => {
+    if (!client || !isMobileDevice()) return;
+    const active =
+      snapshot.state === VoiceState.LISTENING ||
+      snapshot.state === VoiceState.SPEAKING ||
+      snapshot.state === VoiceState.THINKING ||
+      snapshot.wakeWordListening;
+    if (active) void requestScreenWakeLock();
+    else releaseScreenWakeLock();
+  }, [client, snapshot.state, snapshot.wakeWordListening]);
 
   const startListening = useCallback(() => voiceEngineV2.startListening(true), []);
   const stopListening = useCallback(() => voiceEngineV2.stopListening(), []);

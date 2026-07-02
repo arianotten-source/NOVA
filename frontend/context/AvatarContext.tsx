@@ -77,6 +77,8 @@ const DEFAULT_VOICE: VoiceSignals = {
   userTalking: false,
   viseme: 'neutral',
   emotion: 'neutral',
+  wakeActivation: 0,
+  replyEmotion: null,
 };
 
 export function AvatarProvider({ children }: { children: React.ReactNode }) {

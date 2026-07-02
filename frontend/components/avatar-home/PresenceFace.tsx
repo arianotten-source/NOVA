@@ -48,6 +48,8 @@ function PresenceFaceAnimated({
         : Math.cos(search.current * 0.65) * 4 + my * 0.4;
       sx.current += (tx - sx.current) * 0.07;
       sy.current += (ty - sy.current) * 0.07;
+      if (!faceDetected && Math.abs(sx.current) < 0.1) sx.current = 0;
+      if (!faceDetected && Math.abs(sy.current) < 0.1) sy.current = 0;
       frame.current += 1;
       if (frame.current % 2 === 0) {
         setGaze({ x: sx.current, y: sy.current });

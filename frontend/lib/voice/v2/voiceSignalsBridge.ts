@@ -14,6 +14,8 @@ export function voiceSignalsFromState(
     userTalking: partial.userTalking ?? state === VoiceState.LISTENING,
     viseme: partial.viseme ?? 'neutral',
     emotion: partial.emotion ?? 'neutral',
+    wakeActivation: partial.wakeActivation ?? 0,
+    replyEmotion: partial.replyEmotion ?? null,
   };
 }
 

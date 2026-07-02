@@ -21,10 +21,12 @@ export class IdleEngine {
   private nextBlinkAt = 0;
   private nextLookAt = 0;
   private nextSmileAt = 0;
+  private nextTiltAt = 0;
   private nextYawnAt = 0;
   private blinkUntil = 0;
   private lookUntil = 0;
   private smileUntil = 0;
+  private tiltUntil = 0;
   private lookX = 0;
   private lookY = 0;
   private pupilX = 0;
@@ -40,8 +42,9 @@ export class IdleEngine {
   private scheduleAll(now: number, personality: PersonalityProfile) {
     const m = personality.blinkIntervalMul;
     this.nextBlinkAt = now + randBetween(3000, 7000) * m;
-    this.nextLookAt = now + randBetween(8000, 20000) / personality.idleSpeedMul;
-    this.nextSmileAt = now + randBetween(10000, 30000) / personality.idleSpeedMul;
+    this.nextLookAt = now + randBetween(6000, 18000) / personality.idleSpeedMul;
+    this.nextSmileAt = now + randBetween(8000, 25000) / personality.idleSpeedMul;
+    this.nextTiltAt = now + randBetween(12000, 28000) / personality.idleSpeedMul;
     this.nextYawnAt = now + randBetween(120000, 240000);
   }
 
@@ -53,8 +56,8 @@ export class IdleEngine {
     let smileBoost = 0;
 
     if (now >= this.nextBlinkAt && now > this.blinkUntil) {
-      this.blinkUntil = now + 180;
-      this.nextBlinkAt = now + randBetween(3000, 7000) * personality.blinkIntervalMul;
+      this.blinkUntil = now + randBetween(140, 200);
+      this.nextBlinkAt = now + randBetween(2800, 6500) * personality.blinkIntervalMul;
       action = 'blink';
       isBlinking = true;
     }
@@ -65,35 +68,45 @@ export class IdleEngine {
     }
 
     if (now >= this.nextLookAt && now > this.lookUntil) {
-      this.lookX = randBetween(-8, 8) * personality.headMotionMul;
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      this.lookX = dir * randBetween(6, 14) * personality.headMotionMul;
       this.lookY = randBetween(-4, 4) * personality.headMotionMul;
-      this.lookUntil = now + randBetween(1200, 2800);
-      this.nextLookAt = now + randBetween(8000, 20000) / personality.idleSpeedMul;
+      this.lookUntil = now + randBetween(1000, 2600);
+      this.nextLookAt = now + randBetween(6000, 18000) / personality.idleSpeedMul;
       action = 'look_around';
     }
 
     if (now < this.lookUntil) {
-      const fade = 1 - (this.lookUntil - now) / 2800;
-      this.pupilX = this.lookX * fade * 0.35;
-      this.pupilY = this.lookY * fade * 0.35;
-      this.headTilt = this.lookX * 0.15 * fade;
+      const fade = 1 - (this.lookUntil - now) / 2600;
+      this.pupilX = this.lookX * fade * 0.4;
+      this.pupilY = this.lookY * fade * 0.4;
+      this.headTilt = this.lookX * 0.18 * fade;
     } else {
-      this.pupilX *= 0.92;
-      this.pupilY *= 0.92;
-      this.headTilt *= 0.9;
+      this.pupilX *= 0.9;
+      this.pupilY *= 0.9;
+      this.headTilt *= 0.88;
+      this.lookX *= 0.92;
+      this.lookY *= 0.92;
     }
 
     if (now >= this.nextSmileAt && now > this.smileUntil) {
-      this.smileUntil = now + 1500;
-      this.nextSmileAt = now + randBetween(10000, 30000) / personality.idleSpeedMul;
+      this.smileUntil = now + randBetween(1200, 2200);
+      this.nextSmileAt = now + randBetween(8000, 25000) / personality.idleSpeedMul;
       action = 'micro_smile';
     }
 
     if (now < this.smileUntil) {
-      smileBoost = 0.15 * personality.smileBias + 0.1;
+      smileBoost = 0.15 * personality.smileBias + 0.12;
     }
 
-    if (inactiveMs > 20000 && inactiveMs < 60000 && Math.random() < 0.003) {
+    if (now >= this.nextTiltAt && now > this.tiltUntil) {
+      this.headTilt = randBetween(-4, 4) * personality.headMotionMul;
+      this.tiltUntil = now + randBetween(1500, 3000);
+      this.nextTiltAt = now + randBetween(12000, 28000) / personality.idleSpeedMul;
+      action = 'head_tilt';
+    }
+
+    if (inactiveMs > 15000 && Math.random() < 0.004) {
       action = 'curious_glance';
       this.lookX = randBetween(-10, 10);
       this.lookY = randBetween(-6, 2);
@@ -101,25 +114,21 @@ export class IdleEngine {
       this.pupilY = this.lookY * 0.5;
     }
 
-    if (inactiveMs > 60000 && Math.random() < 0.002) {
-      action = 'curious_glance';
-    }
-
     if (inactiveMs > 180000 && now >= this.nextYawnAt) {
       action = 'yawn';
       this.nextYawnAt = now + randBetween(120000, 240000);
     }
 
-    if (Math.random() < 0.002 * personality.idleSpeedMul) {
-      action = 'curious_glance';
+    if (Math.random() < 0.003 * personality.idleSpeedMul) {
       this.pupilX = randBetween(-5, 5);
-      this.pupilY = randBetween(-3, 0);
+      this.pupilY = randBetween(-3, 1);
+      action = 'pupil_drift';
     }
 
     return {
       action,
-      eyeOffsetX: this.lookX * 0.08,
-      eyeOffsetY: this.lookY * 0.08,
+      eyeOffsetX: this.lookX * 0.1,
+      eyeOffsetY: this.lookY * 0.1,
       pupilOffsetX: this.pupilX,
       pupilOffsetY: this.pupilY,
       headTilt: this.headTilt,

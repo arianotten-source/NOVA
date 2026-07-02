@@ -15,7 +15,10 @@ import { voiceLog } from '@/lib/voice/voiceLogger';
 import { setSpeaking as setGlobalSpeaking, voiceState } from '@/lib/voice/voiceState';
 import { requestMicrophonePermission } from '@/lib/voice/permissions';
 import { conversationMemory } from './conversationMemory';
-import { containsWakeWord, stripWakeWord } from './hotwordEngine';
+import { containsWakeWord, stripWakeWord, isStopCommand } from './hotwordEngine';
+import { playActivationSound } from './activationSound';
+import { parseReplyEmotion } from './replyEmotionParser';
+import { requestScreenWakeLock, vibrateActivation } from '@/lib/platform/androidVoice';
 import { lipSyncEngine } from './lipSync';
 import { speechRecognitionManager } from './speechRecognitionManager';
 import { isDuplicateTranscript, normalizeTranscript } from './transcriptUtils';
@@ -67,6 +70,10 @@ export class VoiceEngineV2 {
   private sessionGen = 0;
   private intentionalFinalize = false;
   private bypassHotword = false;
+  private continueListenMode = false;
+  private wakeActivation = 0;
+  private wakeActivationTimer: number | null = null;
+  private replyEmotion: string | null = null;
   private pendingSmartCall: SmartCallRequest | null = null;
   private initialized = false;
   private lastDisplayText: string | null = null;
@@ -165,6 +172,8 @@ export class VoiceEngineV2 {
         this.state === VoiceState.LISTENING && voiceActivityDetector.isUserSpeaking(),
       viseme,
       emotion: this.emotion,
+      wakeActivation: this.wakeActivation,
+      replyEmotion: this.replyEmotion,
     };
 
     this.avatarBridge.setVoiceSignals(signals);
@@ -192,6 +201,22 @@ export class VoiceEngineV2 {
       window.clearTimeout(this.waitTimer);
       this.waitTimer = null;
     }
+    if (this.wakeActivationTimer) {
+      window.clearTimeout(this.wakeActivationTimer);
+      this.wakeActivationTimer = null;
+    }
+  }
+
+  private pulseWakeActivation() {
+    this.wakeActivation = 1;
+    this.syncAvatar();
+    void requestScreenWakeLock();
+    if (this.wakeActivationTimer) window.clearTimeout(this.wakeActivationTimer);
+    this.wakeActivationTimer = window.setTimeout(() => {
+      this.wakeActivation = 0;
+      this.wakeActivationTimer = null;
+      this.syncAvatar();
+    }, 700);
   }
 
   private haltRecognition() {
@@ -285,10 +310,13 @@ export class VoiceEngineV2 {
     this.silenceTimer = window.setInterval(() => {
       if (this.state !== VoiceState.LISTENING) return;
       if (voiceState.isSpeaking) return;
-      const silent = Date.now() - this.lastSpeechAt > VOICE_V2.SILENCE_MS;
+      const silenceLimit = this.continueListenMode
+        ? VOICE_V2.CONTINUE_LISTEN_MS
+        : VOICE_V2.SILENCE_MS;
+      const silent = Date.now() - this.lastSpeechAt > silenceLimit;
       if (silent && this.accumulated.trim()) {
         this.scheduleFinalize();
-      } else if (silent && !this.accumulated.trim() && Date.now() - this.lastSpeechAt > VOICE_V2.SILENCE_MS + 1500) {
+      } else if (silent && !this.accumulated.trim() && Date.now() - this.lastSpeechAt > silenceLimit + 1500) {
         this.scheduleFinalize();
       }
     }, 100);
@@ -341,9 +369,12 @@ export class VoiceEngineV2 {
         this.wakeWordDetected = true;
         this.wakeWordListening = false;
         speechRecognitionManager.stop();
+        playActivationSound();
+        vibrateActivation();
+        this.pulseWakeActivation();
+        voiceLog.emit('Microfoon gestart', 'Hey Nova');
         const remainder = stripWakeWord(probe);
-        this.bypassHotword = true;
-        void this.startListening(true);
+        void this.startListening(false);
         if (remainder) {
           this.accumulated = remainder;
           this.interimText = remainder;
@@ -409,6 +440,7 @@ export class VoiceEngineV2 {
 
     if (!raw) {
       this.intentionalFinalize = false;
+      this.continueListenMode = false;
       await this.transition(VoiceState.IDLE);
       if (!this.bypassHotword) void this.startHotwordListen();
       return;
@@ -419,6 +451,13 @@ export class VoiceEngineV2 {
   }
 
   private async processTranscript(raw: string) {
+    if (isStopCommand(raw)) {
+      this.continueListenMode = false;
+      this.muteMic();
+      await this.speakShortReply('Oké, ik stop met luisteren.', false);
+      return;
+    }
+
     await this.transition(VoiceState.PROCESSING);
     this.muteMic();
 
@@ -561,7 +600,7 @@ export class VoiceEngineV2 {
     return false;
   }
 
-  private async speakShortReply(text: string) {
+  private async speakShortReply(text: string, continueAfter = true) {
     this.muteMic();
     this.lastDisplayText = text;
     lipSyncEngine.setText(text);
@@ -585,7 +624,11 @@ export class VoiceEngineV2 {
         this.avatarBridge?.setSpeaking(false);
         this.syncAvatar();
         await this.transition(VoiceState.WAITING);
-        this.scheduleWaitToIdle();
+        if (continueAfter) {
+          this.scheduleContinueListening();
+        } else {
+          this.scheduleWaitToIdle(true);
+        }
       },
     });
 
@@ -664,6 +707,11 @@ export class VoiceEngineV2 {
       this.lastDisplayText = fullReply;
       lipSyncEngine.setText(fullReply);
 
+      const parsed = parseReplyEmotion(fullReply);
+      this.emotion = parsed.emotion;
+      this.replyEmotion = parsed.emotion;
+      this.syncAvatar();
+
       const tts = thinkingEngine.getTtsModifiers();
       let audioStarted = false;
 
@@ -691,7 +739,7 @@ export class VoiceEngineV2 {
           this.releaseAi(gen);
           this.avatarBridge?.setSpeaking(false);
           await this.transition(VoiceState.WAITING);
-          this.scheduleWaitToIdle();
+          this.scheduleContinueListening();
         },
       });
 
@@ -714,8 +762,21 @@ export class VoiceEngineV2 {
     }
   }
 
+  private scheduleContinueListening() {
+    if (this.waitTimer) window.clearTimeout(this.waitTimer);
+    this.waitTimer = window.setTimeout(async () => {
+      this.waitTimer = null;
+      if (voiceState.isSpeaking) return;
+      if (this.state !== VoiceState.WAITING && this.state !== VoiceState.IDLE) return;
+      this.continueListenMode = true;
+      await this.unmuteMic();
+      await this.startListening(false);
+    }, VOICE_V2.POST_TTS_CONTINUE_MS);
+  }
+
   private scheduleWaitToIdle(immediate = false) {
     if (this.waitTimer) window.clearTimeout(this.waitTimer);
+    this.continueListenMode = false;
     const delay = immediate ? 0 : VOICE_V2.POST_TTS_WAIT_MS;
     this.waitTimer = window.setTimeout(async () => {
       this.waitTimer = null;
