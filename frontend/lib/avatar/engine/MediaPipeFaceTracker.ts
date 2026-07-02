@@ -2,6 +2,7 @@ export interface FaceTrackResult {
   faceDetected: boolean;
   faceX: number;
   faceY: number;
+  landmarks?: { x: number; y: number; z?: number }[];
 }
 
 const WASM_CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm';
@@ -77,6 +78,7 @@ export class MediaPipeFaceTracker {
         faceDetected: true,
         faceX: Math.max(-MAX_GAZE, Math.min(MAX_GAZE, rawX)),
         faceY: Math.max(-MAX_GAZE * 0.7, Math.min(MAX_GAZE * 0.7, rawY)),
+        landmarks: landmarks.map((p) => ({ x: p.x, y: p.y, z: p.z })),
       };
     } catch (err) {
       console.warn('[MediaPipe] detect error', err);

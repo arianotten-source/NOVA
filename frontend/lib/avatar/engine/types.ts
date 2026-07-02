@@ -81,6 +81,9 @@ export interface CameraSignals {
   userLooking: boolean;
   faceX: number;
   faceY: number;
+  personId: string | null;
+  personName: string | null;
+  personKnown: boolean;
 }
 
 export interface SystemSignals {

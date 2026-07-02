@@ -13,6 +13,7 @@ export class CameraEngine {
   private smoothY = 0;
   private mediaPipe: MediaPipeFaceTracker | null = null;
   private useMediaPipe = false;
+  private lastLandmarks: { x: number; y: number; z?: number }[] | null = null;
   private signals: CameraSignals = {
     available: false,
     permission: 'prompt',
@@ -20,11 +21,28 @@ export class CameraEngine {
     userLooking: false,
     faceX: 0,
     faceY: 0,
+    personId: null,
+    personName: null,
+    personKnown: false,
   };
   private listeners = new Set<(s: CameraSignals) => void>();
 
   getSignals(): CameraSignals {
     return { ...this.signals };
+  }
+
+  getLastLandmarks() {
+    return this.lastLandmarks;
+  }
+
+  setIdentityOverlay(personId: string | null, personName: string | null, known: boolean) {
+    this.signals = {
+      ...this.signals,
+      personId,
+      personName,
+      personKnown: known,
+    };
+    this.emit();
   }
 
   subscribe(fn: (s: CameraSignals) => void) {
@@ -65,6 +83,9 @@ export class CameraEngine {
         userLooking: false,
         faceX: 0,
         faceY: 0,
+        personId: null,
+        personName: null,
+        personKnown: false,
       };
 
       this.mediaPipe = new MediaPipeFaceTracker();
@@ -93,6 +114,7 @@ export class CameraEngine {
     this.video = null;
     this.smoothX = 0;
     this.smoothY = 0;
+    this.lastLandmarks = null;
     this.signals = {
       available: false,
       permission: this.signals.permission,
@@ -100,6 +122,9 @@ export class CameraEngine {
       userLooking: false,
       faceX: 0,
       faceY: 0,
+      personId: null,
+      personName: null,
+      personKnown: false,
     };
     this.emit();
   }
@@ -121,6 +146,7 @@ export class CameraEngine {
         if (this.useMediaPipe && this.mediaPipe?.isReady()) {
           const result = this.mediaPipe.detect(this.video, performance.now());
           if (result) {
+            this.lastLandmarks = result.landmarks ?? null;
             if (result.faceDetected) {
               this.smoothX = lerp(this.smoothX, result.faceX, 0.07);
               this.smoothY = lerp(this.smoothY, result.faceY, 0.07);
@@ -132,6 +158,7 @@ export class CameraEngine {
                 faceY: this.smoothY,
               };
             } else {
+              this.lastLandmarks = null;
               this.smoothX = lerp(this.smoothX, 0, 0.04);
               this.smoothY = lerp(this.smoothY, 0, 0.04);
               this.signals = {

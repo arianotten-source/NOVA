@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAvatar } from '@/context/AvatarContext';
+import { useIdentity } from '@/context/IdentityContext';
 import { useVoicePipeline } from '@/context/VoicePipelineContext';
 import { VoiceState } from '@/lib/voice/v2/types';
 import { voiceLog } from '@/lib/voice/voiceLogger';
@@ -17,9 +18,10 @@ export default function HomeDebugOverlay() {
   const [open, setOpen] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const { cameraSignals, engineSnapshot } = useAvatar();
+  const { snapshot: identitySnapshot, enrollment, settings: identitySettings } = useIdentity();
   const {
     voiceState,
-    snapshot,
+    snapshot: voiceSnapshot,
     currentTranscript,
     micEnabled,
     recognitionActive,
@@ -67,12 +69,24 @@ export default function HomeDebugOverlay() {
           <Row label="Recognition" value={recognitionActive ? 'Active' : 'Off'} />
           <Row label="AI Queue" value={String(aiQueueSize)} />
           <Row label="Transcript" value={currentTranscript || '—'} />
-          <Row label="Latency" value={snapshot.aiLatencyMs != null ? `${snapshot.aiLatencyMs}ms` : '—'} />
+          <Row label="Latency" value={voiceSnapshot.aiLatencyMs != null ? `${voiceSnapshot.aiLatencyMs}ms` : '—'} />
           <Row label="FPS" value={String(engineSnapshot?.fps ?? '—')} />
           <Row label="Camera" value={faceState} />
+          <Row
+            label="Identity"
+            value={
+              identitySnapshot.isKnown
+                ? `${identitySnapshot.currentPersonName} (${Math.round(identitySnapshot.lastMatchConfidence * 100)}%)`
+                : identitySnapshot.isUnknown
+                  ? 'Onbekend'
+                  : '—'
+            }
+          />
+          <Row label="Enroll" value={enrollment.step} />
+          <Row label="Face ID" value={identitySettings.faceRecognitionEnabled ? 'On' : 'Off'} />
           <Row label="Memory" value={`${memorySize} turns`} />
           <Row label="Wake Word" value={wakeWordListening ? 'Listening' : 'Idle'} />
-          <Row label="Emotion" value={snapshot.emotion} />
+          <Row label="Emotion" value={voiceSnapshot.emotion} />
           <Row label="Echo Cancel" value={echoCancellation ? 'On' : 'Off'} />
           <Row label="Think style" value={thinkingSnapshot.active ? thinkingSnapshot.style : '—'} />
           <div className="pt-2 border-t border-nova-border/40 mt-2 max-h-28 overflow-y-auto space-y-0.5">

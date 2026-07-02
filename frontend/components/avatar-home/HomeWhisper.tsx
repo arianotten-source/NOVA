@@ -1,9 +1,12 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAvatar } from '@/context/AvatarContext';
+import { useIdentity } from '@/context/IdentityContext';
 
 export default function HomeWhisper() {
   const { engineSnapshot } = useAvatar();
-  const text = engineSnapshot?.presence?.whisper;
+  const { snapshot, careAlert } = useIdentity();
+  const text =
+    careAlert ?? snapshot.greeting ?? engineSnapshot?.presence?.whisper;
 
   return (
     <div className="absolute bottom-[22%] left-0 right-0 px-8 pointer-events-none z-10">

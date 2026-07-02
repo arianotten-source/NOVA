@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { MemoryProvider } from './context/MemoryContext';
 import { AvatarProvider } from './context/AvatarContext';
+import { IdentityProvider } from './context/IdentityContext';
 import App from './App';
 import './styles/globals.css';
 
@@ -11,7 +12,9 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <MemoryProvider>
         <AvatarProvider>
-          <App />
+          <IdentityProvider>
+            <App />
+          </IdentityProvider>
         </AvatarProvider>
       </MemoryProvider>
     </BrowserRouter>

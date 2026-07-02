@@ -20,6 +20,13 @@ import { lipSyncEngine } from './lipSync';
 import { speechRecognitionManager } from './speechRecognitionManager';
 import { isDuplicateTranscript, normalizeTranscript } from './transcriptUtils';
 import { VoiceState, VOICE_V2, type VoiceSnapshot } from './types';
+import { identityCareEngine } from '@/lib/identity/IdentityCareEngine';
+import { identityEngine } from '@/lib/identity/IdentityEngine';
+import { executeSmartCall, type SmartCallRequest } from '@/lib/identity/SmartCallEngine';
+import { RELATIONSHIP_OPTIONS } from '@/lib/identity/types';
+import type { PersonRelationship } from '@/lib/identity/types';
+import { cameraEngine } from '@/lib/avatar/engine/CameraEngine';
+import { landmarksToDescriptor } from '@/lib/identity/faceDescriptor';
 
 type SnapshotListener = (snap: VoiceSnapshot) => void;
 type AvatarBridge = {
@@ -60,6 +67,7 @@ export class VoiceEngineV2 {
   private sessionGen = 0;
   private intentionalFinalize = false;
   private bypassHotword = false;
+  private pendingSmartCall: SmartCallRequest | null = null;
 
   init(): boolean {
     if (!speechRecognitionManager.init()) return false;
@@ -426,7 +434,147 @@ export class VoiceEngineV2 {
     const analysis = classifyQuestion(raw);
     this.emotion = emotionForCategory(analysis.category);
 
+    if (await this.tryPendingSmartCall(raw)) return;
+    if (await this.tryEnrollmentVoice(raw)) return;
+    if (await this.trySmartCallQuery(raw)) return;
+
     await this.runThinkingAndSpeak(raw);
+  }
+
+  private async tryPendingSmartCall(raw: string): Promise<boolean> {
+    if (!this.pendingSmartCall) return false;
+    const lower = raw.toLowerCase();
+    if (lower.includes('ja') || lower.includes('akkoord') || lower.includes('bevestig')) {
+      const req = { ...this.pendingSmartCall, confirmed: true };
+      this.pendingSmartCall = null;
+      executeSmartCall(req);
+      await this.speakShortReply(req.message ? 'Bericht wordt verstuurd.' : 'Ik bel nu.');
+      return true;
+    }
+    if (lower.includes('nee') || lower.includes('annuleer') || lower.includes('stop')) {
+      this.pendingSmartCall = null;
+      await this.speakShortReply('Geannuleerd.');
+      return true;
+    }
+    return false;
+  }
+
+  private async tryEnrollmentVoice(raw: string): Promise<boolean> {
+    const enroll = identityEngine.getEnrollment();
+    if (enroll.step === 'idle' || enroll.step === 'done') return false;
+
+    const lower = raw.toLowerCase().trim();
+
+    if (enroll.step === 'consent') {
+      if (lower.includes('ja') || lower.includes('graag') || lower.includes('ok')) {
+        identityEngine.acceptConsent();
+        await this.speakShortReply('Hoe heet je voornaam?');
+        return true;
+      }
+      if (lower.includes('nee')) {
+        identityEngine.cancelEnrollment();
+        await this.speakShortReply('Geen probleem.');
+        return true;
+      }
+      return false;
+    }
+
+    if (enroll.step === 'firstName') {
+      identityEngine.setEnrollmentFirstName(raw);
+      await this.speakShortReply('Achternaam? Of zeg overslaan.');
+      return true;
+    }
+
+    if (enroll.step === 'lastName') {
+      identityEngine.setEnrollmentLastName(raw);
+      await this.speakShortReply('Wat is je relatie tot de gebruiker?');
+      return true;
+    }
+
+    if (enroll.step === 'relationship') {
+      const rel = this.matchRelationship(lower);
+      if (!rel) {
+        await this.speakShortReply('Dat herken ik niet. Kies bijvoorbeeld partner, kind of arts.');
+        return true;
+      }
+      identityEngine.setEnrollmentRelationship(rel);
+      const landmarks = cameraEngine.getLastLandmarks();
+      const descriptor = landmarks?.length ? landmarksToDescriptor(landmarks) : undefined;
+      const person = await identityEngine.completeEnrollment(descriptor);
+      await this.speakShortReply(
+        person ? `Leuk je te ontmoeten, ${person.firstName}!` : 'Opslaan is niet gelukt.'
+      );
+      return true;
+    }
+
+    return false;
+  }
+
+  private matchRelationship(text: string): PersonRelationship | null {
+    const hit = RELATIONSHIP_OPTIONS.find(
+      (o) => text.includes(o.label.toLowerCase()) || text.includes(o.value)
+    );
+    return hit?.value ?? null;
+  }
+
+  private isSmartCallQuery(text: string): boolean {
+    const lower = text.toLowerCase();
+    return (
+      lower.includes('bel ') ||
+      lower.includes('bel mijn') ||
+      lower.includes('bel de') ||
+      lower.includes('bel huisarts') ||
+      lower.includes('stuur een bericht') ||
+      lower.includes('stuur bericht') ||
+      (lower.includes('laat') && lower.includes('weten'))
+    );
+  }
+
+  private async trySmartCallQuery(raw: string): Promise<boolean> {
+    if (!this.isSmartCallQuery(raw)) return false;
+
+    let deferred = false;
+    const result = await identityCareEngine.handleSmartCallQuery(raw, async (req) => {
+      this.pendingSmartCall = req;
+      const msg = req.message
+        ? `Wil je dat ik een bericht stuur naar ${req.personName}?`
+        : `Wil je dat ik ${req.personName} bel?`;
+      await this.speakShortReply(`${msg} Zeg ja om te bevestigen.`);
+      deferred = true;
+      return false;
+    });
+
+    if (deferred) return true;
+    if (result.status === 'not_found') {
+      await this.speakShortReply(result.message);
+      return true;
+    }
+    if (result.status === 'confirmed') {
+      await this.speakShortReply(result.message);
+      return true;
+    }
+    return false;
+  }
+
+  private async speakShortReply(text: string) {
+    this.muteMic();
+    await this.transition(VoiceState.SPEAKING);
+    lipSyncEngine.setText(text);
+    await speakText(text, {
+      onStart: () => {
+        this.muteMic();
+        setGlobalSpeaking(true);
+        this.avatarBridge?.setSpeaking(true);
+        this.syncAvatar();
+      },
+      onEnd: async () => {
+        setGlobalSpeaking(false);
+        this.avatarBridge?.setSpeaking(false);
+        this.syncAvatar();
+        await this.transition(VoiceState.WAITING);
+        this.scheduleWaitToIdle();
+      },
+    });
   }
 
   private async runThinkingAndSpeak(text: string) {
@@ -444,12 +592,13 @@ export class VoiceEngineV2 {
 
     const thinkStarted = performance.now();
     const memoryContext = conversationMemory.buildContextPrompt();
+    const identityContext = await identityCareEngine.buildFullAiContext();
     const memoryHint = conversationMemory.findRelevantMemory(text);
     const prompt = memoryHint ? `${memoryHint}\n${text}` : text;
 
     const aiPromise = sendAiMessage(prompt, {
       signal: abort.signal,
-      memoryContext,
+      memoryContext: [memoryContext, identityContext].filter(Boolean).join('\n'),
     });
 
     try {

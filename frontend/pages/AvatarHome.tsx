@@ -9,6 +9,7 @@ import HomeMic from '@/components/avatar-home/HomeMic';
 import HomePermissionBanner from '@/components/avatar-home/HomePermissionBanner';
 import HomeVoiceStatus from '@/components/avatar-home/HomeVoiceStatus';
 import HomeWhisper from '@/components/avatar-home/HomeWhisper';
+import HomeIdentityPrompt from '@/components/avatar-home/HomeIdentityPrompt';
 import PresenceFace from '@/components/avatar-home/PresenceFace';
 import PresenceFaceStatic from '@/components/avatar-home/PresenceFaceStatic';
 import EngineErrorBoundary from '@/components/errors/EngineErrorBoundary';
@@ -70,6 +71,10 @@ function AvatarHomeContent() {
 
         <EngineErrorBoundary name="Presence Whispers" fallback={null}>
           <HomeWhisper />
+        </EngineErrorBoundary>
+
+        <EngineErrorBoundary name="Identity Engine" fallback={null}>
+          <HomeIdentityPrompt />
         </EngineErrorBoundary>
 
         <EngineErrorBoundary name="Camera Engine" fallback={null}>
