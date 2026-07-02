@@ -3,6 +3,7 @@ import { useClientOnly } from '@/hooks/useClientOnly';
 
 interface SpeechRecognitionEvent {
   results: SpeechRecognitionResultList;
+  resultIndex: number;
 }
 
 interface SpeechRecognitionInstance extends EventTarget {
@@ -11,6 +12,7 @@ interface SpeechRecognitionInstance extends EventTarget {
   lang: string;
   start: () => void;
   stop: () => void;
+  abort?: () => void;
   onresult: ((event: SpeechRecognitionEvent) => void) | null;
   onerror: ((event: Event) => void) | null;
   onend: (() => void) | null;

@@ -1,4 +1,5 @@
 import type { CameraSignals } from './types';
+import { MediaPipeFaceTracker } from './MediaPipeFaceTracker';
 
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
@@ -10,7 +11,8 @@ export class CameraEngine {
   private rafId = 0;
   private smoothX = 0;
   private smoothY = 0;
-  private searchPhase = 0;
+  private mediaPipe: MediaPipeFaceTracker | null = null;
+  private useMediaPipe = false;
   private signals: CameraSignals = {
     available: false,
     permission: 'prompt',
@@ -46,13 +48,14 @@ export class CameraEngine {
 
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 320, height: 240 },
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false,
       });
       this.video = document.createElement('video');
       this.video.srcObject = this.stream;
       this.video.muted = true;
       this.video.playsInline = true;
+      this.video.setAttribute('playsinline', 'true');
       await this.video.play();
 
       this.signals = {
@@ -63,6 +66,13 @@ export class CameraEngine {
         faceX: 0,
         faceY: 0,
       };
+
+      this.mediaPipe = new MediaPipeFaceTracker();
+      this.useMediaPipe = await this.mediaPipe.init();
+      if (!this.useMediaPipe) {
+        console.warn('[CameraEngine] MediaPipe unavailable — brightness fallback');
+      }
+
       this.startAnalysis();
       this.emit();
     } catch {
@@ -76,6 +86,9 @@ export class CameraEngine {
   stop() {
     if (this.rafId) cancelAnimationFrame(this.rafId);
     this.stream?.getTracks().forEach((t) => t.stop());
+    this.mediaPipe?.close();
+    this.mediaPipe = null;
+    this.useMediaPipe = false;
     this.stream = null;
     this.video = null;
     this.smoothX = 0;
@@ -91,11 +104,10 @@ export class CameraEngine {
     this.emit();
   }
 
-  /** Brightness-centroid tracking — ready for MediaPipe Face Landmarks */
   private startAnalysis() {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx || !this.video) return;
+    if (!this.video) return;
 
     const w = 80;
     const h = 60;
@@ -104,62 +116,80 @@ export class CameraEngine {
 
     const tick = () => {
       if (!this.video) return;
+
       try {
-        ctx.drawImage(this.video, 0, 0, w, h);
-        const data = ctx.getImageData(0, 0, w, h).data;
+        if (this.useMediaPipe && this.mediaPipe?.isReady()) {
+          const result = this.mediaPipe.detect(this.video, performance.now());
+          if (result) {
+            if (result.faceDetected) {
+              this.smoothX = lerp(this.smoothX, result.faceX, 0.07);
+              this.smoothY = lerp(this.smoothY, result.faceY, 0.07);
+              this.signals = {
+                ...this.signals,
+                faceDetected: true,
+                userLooking: true,
+                faceX: this.smoothX,
+                faceY: this.smoothY,
+              };
+            } else {
+              this.smoothX = lerp(this.smoothX, 0, 0.04);
+              this.smoothY = lerp(this.smoothY, 0, 0.04);
+              this.signals = {
+                ...this.signals,
+                faceDetected: false,
+                userLooking: false,
+                faceX: this.smoothX,
+                faceY: this.smoothY,
+              };
+            }
+            this.emit();
+          }
+        } else if (ctx) {
+          ctx.drawImage(this.video, 0, 0, w, h);
+          const data = ctx.getImageData(0, 0, w, h).data;
+          let sumX = 0;
+          let sumY = 0;
+          let weight = 0;
+          let brightSum = 0;
 
-      let sumX = 0;
-      let sumY = 0;
-      let weight = 0;
-      let brightSum = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            const lum = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            brightSum += lum;
+            const px = (i / 4) % w;
+            const py = Math.floor(i / 4 / w);
+            const skinish = data[i] > data[i + 1] && data[i + 1] > data[i + 2] && lum > 40 && lum < 220;
+            if (skinish) {
+              sumX += px * lum;
+              sumY += py * lum;
+              weight += lum;
+            }
+          }
 
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        const lum = (r + g + b) / 3;
-        brightSum += lum;
-        const px = (i / 4) % w;
-        const py = Math.floor(i / 4 / w);
-        const skinish = r > g && g > b && lum > 40 && lum < 220;
-        if (skinish) {
-          sumX += px * lum;
-          sumY += py * lum;
-          weight += lum;
+          const faceLikely = weight > w * h * 8 && brightSum / (data.length / 4) > 30;
+          let targetX = 0;
+          let targetY = 0;
+
+          if (faceLikely) {
+            targetX = ((sumX / weight / w) - 0.5) * 2;
+            targetY = ((sumY / weight / h) - 0.5) * 2;
+          }
+
+          this.smoothX = lerp(this.smoothX, faceLikely ? targetX : 0, faceLikely ? 0.06 : 0.04);
+          this.smoothY = lerp(this.smoothY, faceLikely ? targetY : 0, faceLikely ? 0.06 : 0.04);
+
+          this.signals = {
+            ...this.signals,
+            faceDetected: faceLikely,
+            userLooking: faceLikely,
+            faceX: Math.max(-1, Math.min(1, this.smoothX)),
+            faceY: Math.max(-1, Math.min(1, this.smoothY)),
+          };
+          this.emit();
         }
-      }
-
-      const avg = brightSum / (data.length / 4);
-      const faceLikely = weight > w * h * 8 && avg > 30;
-
-      let targetX = 0;
-      let targetY = 0;
-
-      if (faceLikely) {
-        const cx = sumX / weight;
-        const cy = sumY / weight;
-        targetX = ((cx / w) - 0.5) * 2;
-        targetY = ((cy / h) - 0.5) * 2;
-      } else {
-        this.searchPhase += 0.012;
-        targetX = Math.sin(this.searchPhase) * 0.35;
-        targetY = Math.cos(this.searchPhase * 0.65) * 0.25;
-      }
-
-      this.smoothX = lerp(this.smoothX, targetX, faceLikely ? 0.06 : 0.03);
-      this.smoothY = lerp(this.smoothY, targetY, faceLikely ? 0.06 : 0.03);
-
-      this.signals = {
-        ...this.signals,
-        faceDetected: faceLikely,
-        userLooking: faceLikely,
-        faceX: Math.max(-1, Math.min(1, this.smoothX)),
-        faceY: Math.max(-1, Math.min(1, this.smoothY)),
-      };
-      this.emit();
       } catch {
-        /* canvas taint or frame skip — keep last signals */
+        /* frame skip */
       }
+
       this.rafId = requestAnimationFrame(tick);
     };
 

@@ -1,15 +1,19 @@
 import { useAvatar, useAvatarPoseFallback } from '@/context/AvatarContext';
+import { VoicePipelineProvider } from '@/context/VoicePipelineContext';
 import HomeBackground from '@/components/avatar-home/HomeBackground';
 import HomeCameraPrompt from '@/components/avatar-home/HomeCameraPrompt';
+import HomeDebugOverlay from '@/components/avatar-home/HomeDebugOverlay';
 import HomeLoading from '@/components/avatar-home/HomeLoading';
 import HomeMenu from '@/components/avatar-home/HomeMenu';
 import HomeMic from '@/components/avatar-home/HomeMic';
+import HomePermissionBanner from '@/components/avatar-home/HomePermissionBanner';
+import HomeVoiceStatus from '@/components/avatar-home/HomeVoiceStatus';
 import HomeWhisper from '@/components/avatar-home/HomeWhisper';
 import PresenceFace from '@/components/avatar-home/PresenceFace';
 import PresenceFaceStatic from '@/components/avatar-home/PresenceFaceStatic';
 import EngineErrorBoundary from '@/components/errors/EngineErrorBoundary';
 
-export default function AvatarHome() {
+function AvatarHomeContent() {
   const { engineSnapshot, cameraSignals, status, loading } = useAvatar();
   const fallbackPose = useAvatarPoseFallback('neutraal');
   const pose = engineSnapshot?.pose ?? fallbackPose;
@@ -39,6 +43,8 @@ export default function AvatarHome() {
         <HomeMenu />
       </header>
 
+      <HomePermissionBanner />
+
       <main className="relative flex-1 min-h-0">
         <EngineErrorBoundary
           name="Avatar Engine"
@@ -58,6 +64,10 @@ export default function AvatarHome() {
           </EngineErrorBoundary>
         </EngineErrorBoundary>
 
+        <EngineErrorBoundary name="Voice Status" fallback={null}>
+          <HomeVoiceStatus />
+        </EngineErrorBoundary>
+
         <EngineErrorBoundary name="Presence Whispers" fallback={null}>
           <HomeWhisper />
         </EngineErrorBoundary>
@@ -72,6 +82,18 @@ export default function AvatarHome() {
           <HomeMic />
         </EngineErrorBoundary>
       </footer>
+
+      <EngineErrorBoundary name="Debug Overlay" fallback={null}>
+        <HomeDebugOverlay />
+      </EngineErrorBoundary>
     </div>
+  );
+}
+
+export default function AvatarHome() {
+  return (
+    <VoicePipelineProvider>
+      <AvatarHomeContent />
+    </VoicePipelineProvider>
   );
 }
