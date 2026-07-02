@@ -42,7 +42,7 @@ export default function SplashGate({ children }: SplashGateProps) {
     <>
       {children}
       {showSplash && (
-        <div className="fixed inset-0 z-[200]">
+        <div className="fixed inset-0 z-[200] pointer-events-none">
           <SplashScreen />
         </div>
       )}

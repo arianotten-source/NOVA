@@ -31,12 +31,12 @@ import {
   recordInteraction,
   adaptVoicePace,
 } from '@/lib/avatar/presence/PresenceMemory';
-import type { PresenceProfile, PresenceSettings, EnvironmentContext } from '@/lib/avatar/presence/types';
+import type { PresenceProfile, PresenceSettings, EnvironmentContext, PresenceSnapshot } from '@/lib/avatar/presence/types';
 import { DEFAULT_PRESENCE_PROFILE, DEFAULT_PRESENCE_SETTINGS } from '@/lib/avatar/presence/types';
 import { readStorage } from '@/lib/storage';
 import { eventsForDay, parseEventDate, parseEventTime } from '@/lib/calendarUtils';
 import type { CalendarEvent } from '@/types';
-import type { PresenceSnapshot } from '@/lib/avatar/presence/types';
+import { isMobileDevice } from '@/lib/runtime/isMobile';
 
 interface AvatarContextValue {
   status: AvatarStatus | null;
@@ -158,6 +158,8 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refresh();
+    const cap = window.setTimeout(() => setLoading(false), isMobileDevice() ? 600 : 1200);
+    return () => clearTimeout(cap);
   }, [refresh]);
 
   useEffect(() => {

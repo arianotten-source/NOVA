@@ -47,14 +47,20 @@ function AvatarHomeContent() {
       <HomePermissionBanner />
 
       <main className="relative flex-1 min-h-0">
-        <EngineErrorBoundary
+        {/* Static base — always visible even if animated layer fails */}
+        <div className="absolute inset-0 z-0 pointer-events-none">
+          <PresenceFaceStatic pose={fallbackPose} state="idle" />
+        </div>
+
+          <EngineErrorBoundary
           name="Avatar Engine"
           fallback={<PresenceFaceStatic pose={fallbackPose} state={state} />}
         >
           <EngineErrorBoundary
             name="Presence Engine"
-            fallback={<PresenceFaceStatic pose={pose} state={state} />}
+            fallback={null}
           >
+            <div className="relative z-10 h-full">
             <PresenceFace
               pose={pose}
               state={state}
@@ -62,6 +68,7 @@ function AvatarHomeContent() {
               faceY={cameraTracking ? cameraSignals.faceY : 0}
               faceDetected={cameraTracking && cameraSignals.faceDetected}
             />
+            </div>
           </EngineErrorBoundary>
         </EngineErrorBoundary>
 

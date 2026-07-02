@@ -7,6 +7,8 @@ import { VoiceState } from '@/lib/voice/v2/types';
 import { voiceLog } from '@/lib/voice/voiceLogger';
 import { engineTelemetry, patchTelemetry, readMemoryMb } from '@/lib/debug/engineTelemetry';
 import { ttsDebug } from '@/lib/voice/textToSpeech';
+import { getRuntimeErrors, subscribeRuntimeErrors } from '@/lib/runtime/runtimeErrors';
+import { cameraEngine } from '@/lib/avatar/engine/CameraEngine';
 
 const STATE_LABEL: Record<VoiceState, string> = {
   [VoiceState.IDLE]: 'Idle',
@@ -20,8 +22,9 @@ const STATE_LABEL: Record<VoiceState, string> = {
 export default function HomeDebugOverlay() {
   const [open, setOpen] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+  const [runtimeErrors, setRuntimeErrors] = useState(getRuntimeErrors);
   const location = useLocation();
-  const { cameraSignals, engineSnapshot, voiceSignals } = useAvatar();
+  const { cameraSignals, engineSnapshot, voiceSignals, loading } = useAvatar();
   const { snapshot: identitySnapshot, enrollment, settings: identitySettings } = useIdentityOptional();
   const {
     voiceState,
@@ -49,17 +52,24 @@ export default function HomeDebugOverlay() {
   }, []);
 
   useEffect(() => {
+    return subscribeRuntimeErrors(() => {
+      setRuntimeErrors(getRuntimeErrors());
+    });
+  }, []);
+
+  useEffect(() => {
     patchTelemetry({
       avatar: {
         fps: engineSnapshot?.fps ?? null,
         state: engineSnapshot?.state ?? null,
         expression: engineSnapshot?.pose.expressionId ?? null,
+        loaded: Boolean(engineSnapshot),
       },
+      emotion: { loaded: Boolean(engineSnapshot?.pose.expressionId) },
       presence: {
         energy: engineSnapshot?.presence?.energy ?? null,
         whisper: engineSnapshot?.presence?.whisper ?? null,
       },
-      emotion: voiceSignals.emotion,
       thinking: {
         active: thinkingSnapshot.active,
         style: thinkingSnapshot.active ? thinkingSnapshot.style : null,
@@ -69,14 +79,18 @@ export default function HomeDebugOverlay() {
         recognition: recognitionActive,
         mic: micEnabled,
       },
+      tts: { ...ttsDebug },
+      ai: { queue: aiQueueSize, offline: !voiceSnapshot.aiConnected },
       camera: {
         permission: cameraSignals.permission,
         faceDetected: cameraSignals.faceDetected,
         personKnown: cameraSignals.personKnown,
         personName: cameraSignals.personName,
       },
+      mediaPipe: { ready: cameraEngine.isMediaPipeReady() },
       lipSync: { viseme: voiceSignals.viseme },
-      router: { path: location.pathname },
+      router: { path: location.pathname, screen: screenLabel(location.pathname) },
+      errors: runtimeErrors,
       memoryMb: readMemoryMb(),
     });
   }, [
@@ -88,6 +102,10 @@ export default function HomeDebugOverlay() {
     micEnabled,
     cameraSignals,
     location.pathname,
+    aiQueueSize,
+    voiceSnapshot.aiConnected,
+    runtimeErrors,
+    loading,
   ]);
 
   const faceState =
@@ -112,9 +130,11 @@ export default function HomeDebugOverlay() {
           <p className="text-nova-cyan text-xs font-semibold">Debug Console</p>
 
           <Section title="Avatar">
+            <Row label="Loaded" value={engineTelemetry.avatar.loaded ? 'Yes' : 'No'} />
             <Row label="FPS" value={String(engineTelemetry.avatar.fps ?? '—')} />
             <Row label="State" value={engineTelemetry.avatar.state ?? '—'} />
             <Row label="Expression" value={engineTelemetry.avatar.expression ?? '—'} />
+            <Row label="Emotion" value={engineTelemetry.emotion.loaded ? 'Yes' : 'No'} />
           </Section>
 
           <Section title="Presence">
@@ -152,6 +172,16 @@ export default function HomeDebugOverlay() {
             <Row label="Camera" value={faceState} />
             <Row label="Permission" value={cameraSignals.permission} />
             <Row
+              label="MediaPipe"
+              value={
+                engineTelemetry.mediaPipe.ready === null
+                  ? '—'
+                  : engineTelemetry.mediaPipe.ready
+                    ? 'Ready'
+                    : 'Fallback'
+              }
+            />
+            <Row
               label="Identity"
               value={
                 identitySnapshot.isKnown
@@ -169,11 +199,28 @@ export default function HomeDebugOverlay() {
             <Row label="Viseme" value={voiceSignals.viseme} />
           </Section>
 
+          <Section title="AI">
+            <Row label="Queue" value={String(engineTelemetry.ai.queue)} />
+            <Row label="Offline" value={engineTelemetry.ai.offline ? 'Yes' : 'No'} />
+          </Section>
+
           <Section title="System">
+            <Row label="Screen" value={engineTelemetry.router.screen} />
             <Row label="Router" value={location.pathname} />
             <Row label="Memory" value={`${memorySize} turns · ${engineTelemetry.memoryMb ?? '—'} MB`} />
             <Row label="Wake" value={wakeWordListening ? 'On' : 'Off'} />
+            <Row label="TTS unlock" value={ttsDebug.audioUnlocked ? 'Yes' : 'No'} />
           </Section>
+
+          {runtimeErrors.length > 0 && (
+            <Section title="Errors">
+              {runtimeErrors.slice(0, 5).map((e) => (
+                <p key={`${e.t}-${e.source}`} className="text-red-400 truncate">
+                  [{e.source}] {e.message}
+                </p>
+              ))}
+            </Section>
+          )}
 
           <div className="pt-2 border-t border-nova-border/40 max-h-24 overflow-y-auto space-y-0.5">
             {logs.map((l, i) => (
@@ -204,4 +251,10 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="text-nova-cyan">{value}</span>
     </p>
   );
+}
+
+function screenLabel(path: string) {
+  if (path === '/' || path === '') return 'AvatarHome';
+  if (path.startsWith('/settings')) return 'Settings';
+  return path.slice(1) || 'Unknown';
 }

@@ -9,13 +9,14 @@ import {
 import { useAvatar } from '@/context/AvatarContext';
 import { useClientOnly } from '@/hooks/useClientOnly';
 import { queryMicrophonePermission, type PermissionResult } from '@/lib/voice/permissions';
-import { warmUpTts, isTtsSupported } from '@/lib/voice/textToSpeech';
+import { warmUpTts, isTtsSupported, unlockTtsAudio } from '@/lib/voice/textToSpeech';
 import { voiceEngineV2 } from '@/lib/voice/v2/VoiceEngineV2';
 import { VoiceState, type VoiceSnapshot } from '@/lib/voice/v2/types';
 import { speechRecognitionManager } from '@/lib/voice/v2/speechRecognitionManager';
 import { conversationMemory } from '@/lib/voice/v2/conversationMemory';
 import type { ThinkingSnapshot } from '@/lib/thinking/ThinkingEngine';
 import { thinkingEngine } from '@/lib/thinking/ThinkingEngine';
+import { isMobileDevice } from '@/lib/runtime/isMobile';
 
 /** @deprecated Use VoiceState from v2 — kept for UI compatibility */
 export type VoicePhase = 'idle' | 'listening' | 'thinking' | 'generating' | 'speaking';
@@ -85,9 +86,20 @@ export function VoicePipelineProvider({ children }: { children: React.ReactNode 
     if (!ok) return;
 
     const unsub = voiceEngineV2.subscribe(setSnapshot);
-    void voiceEngineV2.startHotwordListen();
+
+    const hotwordDelay = isMobileDevice() ? 2500 : 400;
+    const hotwordTimer = window.setTimeout(() => {
+      void voiceEngineV2.startHotwordListen().catch(() => {});
+    }, hotwordDelay);
+
+    const unlock = () => unlockTtsAudio();
+    window.addEventListener('pointerdown', unlock, { once: true, passive: true });
+    window.addEventListener('keydown', unlock, { once: true });
 
     return () => {
+      window.clearTimeout(hotwordTimer);
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
       unsub();
     };
   }, [client, setVoiceSignals, setThinking, setSpeaking]);

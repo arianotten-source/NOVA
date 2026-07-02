@@ -37,6 +37,11 @@ export class CameraEngine {
     return this.lastLandmarks;
   }
 
+  isMediaPipeReady(): boolean | null {
+    if (!this.mediaPipe) return null;
+    return this.useMediaPipe;
+  }
+
   setIdentityOverlay(personId: string | null, personName: string | null, known: boolean) {
     if (
       this.signals.personId === personId &&

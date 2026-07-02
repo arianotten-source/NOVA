@@ -30,6 +30,7 @@ import { landmarksToDescriptor } from '@/lib/identity/faceDescriptor';
 import { voiceState } from '@/lib/voice/voiceState';
 import { voiceEngineV2 } from '@/lib/voice/v2/VoiceEngineV2';
 import { VoiceState } from '@/lib/voice/v2/types';
+import { isMobileDevice } from '@/lib/runtime/isMobile';
 
 interface IdentityContextValue {
   snapshot: IdentitySnapshot;
@@ -126,7 +127,11 @@ export function IdentityProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!client || !isAvatarHome) return;
 
-    const id = window.setInterval(() => {
+    const startDelay = isMobileDevice() ? 3000 : 800;
+    let intervalId = 0;
+
+    const startTimer = window.setTimeout(() => {
+      intervalId = window.setInterval(() => {
       const cam = cameraSignalsRef.current;
       const cfg = settingsRef.current;
       const st = statusRef.current;
@@ -164,8 +169,12 @@ export function IdentityProvider({ children }: { children: React.ReactNode }) {
           console.warn('[Identity] tick failed', err);
         });
     }, 600);
+    }, startDelay);
 
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(startTimer);
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [client, isAvatarHome]);
 
   const acceptConsent = useCallback(() => identityEngine.acceptConsent(), []);

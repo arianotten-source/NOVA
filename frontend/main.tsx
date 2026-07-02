@@ -6,6 +6,9 @@ import { AvatarProvider } from './context/AvatarContext';
 import { IdentityProvider } from './context/IdentityContext';
 import App from './App';
 import './styles/globals.css';
+import { attachRuntimeErrorHandlers } from './lib/runtime/runtimeErrors';
+
+attachRuntimeErrorHandlers();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

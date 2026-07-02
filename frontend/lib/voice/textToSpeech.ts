@@ -12,6 +12,7 @@ export interface TtsDebugState {
   queueLength: number;
   lastStartedAt: number | null;
   lastEndedAt: number | null;
+  audioUnlocked: boolean;
 }
 
 export const ttsDebug: TtsDebugState = {
@@ -25,10 +26,12 @@ export const ttsDebug: TtsDebugState = {
   queueLength: 0,
   lastStartedAt: null,
   lastEndedAt: null,
+  audioUnlocked: false,
 };
 
 let voicesCache: SpeechSynthesisVoice[] = [];
 let voicesListenerAttached = false;
+let audioUnlocked = false;
 
 type SpeakJob = {
   text: string;
@@ -60,7 +63,9 @@ function attachVoicesListener() {
   if (!isTtsSupported() || voicesListenerAttached) return;
   voicesListenerAttached = true;
   refreshVoices();
-  speechSynthesis.addEventListener('voiceschanged', refreshVoices);
+  speechSynthesis.addEventListener('voiceschanged', () => {
+    refreshVoices();
+  });
 }
 
 function ensureResumed() {
@@ -70,6 +75,32 @@ function ensureResumed() {
   } catch {
     /* ignore */
   }
+}
+
+function waitForVoices(timeoutMs = 2500): Promise<SpeechSynthesisVoice[]> {
+  return new Promise((resolve) => {
+    attachVoicesListener();
+    refreshVoices();
+    if (voicesCache.length) {
+      voiceLog.emit('TTS gestart', `Voice gevonden: ${voicesCache.length} stemmen`);
+      resolve(voicesCache);
+      return;
+    }
+    const deadline = window.setTimeout(() => {
+      speechSynthesis.removeEventListener('voiceschanged', onChange);
+      refreshVoices();
+      resolve(voicesCache);
+    }, timeoutMs);
+    const onChange = () => {
+      refreshVoices();
+      if (voicesCache.length) {
+        window.clearTimeout(deadline);
+        speechSynthesis.removeEventListener('voiceschanged', onChange);
+        resolve(voicesCache);
+      }
+    };
+    speechSynthesis.addEventListener('voiceschanged', onChange);
+  });
 }
 
 function pickVoice(lang = 'nl-NL'): SpeechSynthesisVoice | null {
@@ -92,20 +123,28 @@ export function isTtsSupported(): boolean {
   return ok;
 }
 
-export function warmUpTts(): void {
-  if (!isTtsSupported()) return;
-  attachVoicesListener();
-  refreshVoices();
-  ensureResumed();
-  // Chrome loads voices lazily — nudge synthesis
+/** Call on first user gesture — required on Chrome/Android for reliable TTS */
+export function unlockTtsAudio(): void {
+  if (!isTtsSupported() || audioUnlocked) return;
   try {
-    const u = new SpeechSynthesisUtterance('');
-    u.volume = 0;
+    ensureResumed();
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0.01;
+    u.rate = 1;
     speechSynthesis.speak(u);
-    speechSynthesis.cancel();
+    audioUnlocked = true;
+    ttsDebug.audioUnlocked = true;
+    voiceLog.emit('TTS gestart', 'Audio ontgrendeld');
   } catch {
     /* ignore */
   }
+}
+
+export function warmUpTts(): void {
+  if (!isTtsSupported()) return;
+  attachVoicesListener();
+  void waitForVoices(1500);
+  ensureResumed();
 }
 
 export function stopSpeaking(): void {
@@ -145,15 +184,13 @@ async function playUtterance(job: SpeakJob): Promise<void> {
     return;
   }
 
-  attachVoicesListener();
-  refreshVoices();
   ensureResumed();
+  await waitForVoices(2000);
 
-  // Chrome bug: cancel() immediately before speak() drops the utterance
   if (speechSynthesis.speaking || speechSynthesis.pending) {
     try {
       speechSynthesis.cancel();
-      await delay(60);
+      await delay(80);
     } catch {
       /* ignore */
     }
@@ -165,12 +202,18 @@ async function playUtterance(job: SpeakJob): Promise<void> {
   await new Promise<void>((done) => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'nl-NL';
+    utterance.volume = 1;
     const voice = pickVoice();
-    if (voice) utterance.voice = voice;
+    if (voice) {
+      utterance.voice = voice;
+      voiceLog.emit('TTS gestart', `Voice geselecteerd: ${voice.name} (${voice.lang})`);
+    }
     utterance.rate = handlers?.rate ?? 1;
     utterance.pitch = handlers?.pitch ?? 1;
 
     let ended = false;
+    let started = false;
+
     const finish = (error?: string) => {
       if (ended) return;
       ended = true;
@@ -182,7 +225,7 @@ async function playUtterance(job: SpeakJob): Promise<void> {
         voiceLog.emit('Fout', `TTS: ${error}`);
         handlers?.onError?.(error);
       } else {
-        voiceLog.emit('TTS voltooid');
+        voiceLog.emit('TTS voltooid', 'Speech geëindigd');
       }
       handlers?.onEnd?.();
       resolve();
@@ -190,10 +233,12 @@ async function playUtterance(job: SpeakJob): Promise<void> {
     };
 
     utterance.onstart = () => {
+      started = true;
       setSpeaking(true);
       ttsDebug.speaking = true;
       ttsDebug.lastStartedAt = Date.now();
-      voiceLog.emit('TTS gestart', voice?.name ?? 'default');
+      const voiceLabel = voice ? `${voice.name} (${voice.lang})` : 'default';
+      voiceLog.emit('TTS gestart', `Speech gestart · ${voiceLabel}`);
       handlers?.onStart?.();
     };
 
@@ -206,20 +251,25 @@ async function playUtterance(job: SpeakJob): Promise<void> {
     try {
       speechSynthesis.speak(utterance);
       ensureResumed();
-      // Chrome sometimes needs a second resume after speak()
-      window.setTimeout(() => {
-        ensureResumed();
-        if (!ended && !speechSynthesis.speaking && !speechSynthesis.pending) {
-          finish('not-started');
-        }
-      }, 800);
     } catch (err) {
       finish(String(err));
       return;
     }
 
-    // Android Chrome sometimes skips onend
-    window.setTimeout(() => finish(), Math.min(60000, text.length * 120 + 3000));
+    // Only abort if onstart never fired after generous delay
+    window.setTimeout(() => {
+      if (!started && !ended) {
+        ensureResumed();
+        if (!speechSynthesis.speaking && !speechSynthesis.pending) {
+          finish('not-started');
+        }
+      }
+    }, 3000);
+
+    // Safety net for Android skipping onend
+    window.setTimeout(() => {
+      if (!ended) finish();
+    }, Math.min(90000, text.length * 140 + 4000));
   });
 }
 

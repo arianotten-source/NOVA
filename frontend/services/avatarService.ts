@@ -7,9 +7,20 @@ import {
 } from '@/lib/avatar/catalog';
 import { SENSOR_API_PORT } from '@/types/sensors';
 import { safeClone } from '@/lib/safeClone';
+import { isMobileDevice } from '@/lib/runtime/isMobile';
 
-const API_BASE = import.meta.env.DEV ? '' : `http://localhost:${SENSOR_API_PORT}`;
-const FETCH_TIMEOUT_MS = 2500;
+function resolveApiBase(): string {
+  if (import.meta.env.DEV) return '';
+  if (typeof window === 'undefined') return '';
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return `http://localhost:${SENSOR_API_PORT}`;
+  }
+  return '';
+}
+
+const API_BASE = resolveApiBase();
+const FETCH_TIMEOUT_MS = isMobileDevice() ? 800 : 2500;
 
 const MOCK_STATUS: AvatarStatus = {
   activeExpressionId: 'blij',
