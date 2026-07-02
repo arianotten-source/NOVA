@@ -1,36 +1,39 @@
 import { useVoicePipeline } from '@/context/VoicePipelineContext';
+import { VoiceState } from '@/lib/voice/v2/types';
 import { cn } from '@/lib/utils';
 
-const phaseLabel: Record<string, string> = {
-  idle: 'Klaar',
-  listening: 'Luisteren…',
-  thinking: 'Nadenken…',
-  generating: 'Nadenken…',
-  speaking: 'Spreken…',
+const STATE_LABEL: Partial<Record<VoiceState, string>> = {
+  [VoiceState.LISTENING]: 'Luisteren…',
+  [VoiceState.PROCESSING]: 'Verwerken…',
+  [VoiceState.THINKING]: 'Nadenken…',
+  [VoiceState.SPEAKING]: 'Spreken…',
+  [VoiceState.WAITING]: 'Even rust…',
 };
 
 export default function HomeVoiceStatus() {
-  const { phase, interimText, finalText, error, thinkingSnapshot } = useVoicePipeline();
+  const { voiceState, interimText, finalText, error, thinkingSnapshot } = useVoicePipeline();
   const display =
     interimText ||
-    (phase === 'speaking' ? finalText : '') ||
-    (phase === 'thinking' || phase === 'generating' ? thinkingSnapshot.preface : '');
+    (voiceState === VoiceState.SPEAKING ? finalText : '') ||
+    (voiceState === VoiceState.THINKING || voiceState === VoiceState.PROCESSING
+      ? thinkingSnapshot.preface
+      : '');
 
-  if (!display && phase === 'idle' && !error) return null;
+  if (!display && voiceState === VoiceState.IDLE && !error) return null;
+
+  const label = STATE_LABEL[voiceState];
 
   return (
     <div className="absolute bottom-[18%] left-0 right-0 z-20 px-6 pointer-events-none">
-      {(phase === 'listening' || phase === 'thinking' || phase === 'generating' || phase === 'speaking') && (
-        <p className="text-center text-[10px] uppercase tracking-widest text-nova-cyan/70 mb-2">
-          {phaseLabel[phase]}
-        </p>
+      {label && (
+        <p className="text-center text-[10px] uppercase tracking-widest text-nova-cyan/70 mb-2">{label}</p>
       )}
       {display && (
         <p
           className={cn(
             'text-center text-sm leading-relaxed max-w-md mx-auto px-4 py-2 rounded-2xl',
             'bg-nova-dark/50 border border-nova-border/30 backdrop-blur-sm',
-            phase === 'listening' ? 'text-nova-cyan' : 'text-gray-200'
+            voiceState === VoiceState.LISTENING ? 'text-nova-cyan' : 'text-gray-200'
           )}
         >
           {display}

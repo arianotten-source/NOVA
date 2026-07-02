@@ -53,12 +53,25 @@ export interface ContextEvent {
   priority?: number;
 }
 
+export type VisemeId = 'A' | 'E' | 'O' | 'M' | 'F' | 'L' | 'smile' | 'neutral';
+
+export type VoicePipelineState =
+  | 'IDLE'
+  | 'LISTENING'
+  | 'PROCESSING'
+  | 'THINKING'
+  | 'SPEAKING'
+  | 'WAITING';
+
 export interface VoiceSignals {
+  state: VoicePipelineState;
   isListening: boolean;
   isSpeaking: boolean;
   isThinking: boolean;
   speechEnergy: number;
   userTalking: boolean;
+  viseme: VisemeId;
+  emotion: string;
 }
 
 export interface CameraSignals {

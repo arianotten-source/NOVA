@@ -1,23 +1,34 @@
 import { useState, useEffect } from 'react';
 import { useAvatar } from '@/context/AvatarContext';
 import { useVoicePipeline } from '@/context/VoicePipelineContext';
+import { VoiceState } from '@/lib/voice/v2/types';
 import { voiceLog } from '@/lib/voice/voiceLogger';
+
+const STATE_LABEL: Record<VoiceState, string> = {
+  [VoiceState.IDLE]: 'Idle',
+  [VoiceState.LISTENING]: 'Listening',
+  [VoiceState.PROCESSING]: 'Processing',
+  [VoiceState.THINKING]: 'Thinking',
+  [VoiceState.SPEAKING]: 'Speaking',
+  [VoiceState.WAITING]: 'Waiting',
+};
 
 export default function HomeDebugOverlay() {
   const [open, setOpen] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const { cameraSignals, engineSnapshot } = useAvatar();
   const {
-    phase,
-    aiConnected,
-    ttsReady,
-    micSupported,
-    thinkingSnapshot,
+    voiceState,
+    snapshot,
+    currentTranscript,
     micEnabled,
     recognitionActive,
     isSpeaking,
     echoCancellation,
-    currentTranscript,
+    aiQueueSize,
+    memorySize,
+    wakeWordListening,
+    thinkingSnapshot,
   } = useVoicePipeline();
 
   useEffect(() => {
@@ -30,26 +41,12 @@ export default function HomeDebugOverlay() {
     };
   }, []);
 
-  const speechState =
-    phase === 'listening'
-      ? 'Listening'
-      : phase === 'thinking'
-        ? 'Thinking'
-        : phase === 'generating'
-          ? 'Generating'
-          : phase === 'speaking'
-            ? 'Speaking'
-            : 'Idle';
-
   const faceState =
     cameraSignals.permission === 'granted' && cameraSignals.faceDetected
       ? 'Detected'
       : cameraSignals.permission === 'granted'
         ? 'Searching'
         : '—';
-
-  const presenceMode = engineSnapshot?.presence?.mode ?? '—';
-  const emotion = thinkingSnapshot.emotion || engineSnapshot?.pose.expressionId || '—';
 
   return (
     <>
@@ -63,22 +60,21 @@ export default function HomeDebugOverlay() {
 
       {open && (
         <div className="fixed bottom-[calc(7.5rem+env(safe-area-inset-bottom))] left-3 z-50 w-[min(92vw,300px)] rounded-xl border border-nova-border/60 bg-nova-dark/95 backdrop-blur-md p-3 text-[10px] font-mono text-gray-300 space-y-1.5 shadow-xl max-h-[55vh] overflow-y-auto">
-          <p className="text-nova-cyan text-xs font-semibold mb-2">Debug Voice</p>
-          <Row label="Listening" value={phase === 'listening' ? 'Yes' : 'No'} />
-          <Row label="Thinking" value={phase === 'thinking' || phase === 'generating' ? 'Yes' : 'No'} />
-          <Row label="Speaking" value={isSpeaking || phase === 'speaking' ? 'Yes' : 'No'} />
+          <p className="text-nova-cyan text-xs font-semibold mb-2">Voice Engine V2</p>
+          <Row label="Voice State" value={STATE_LABEL[voiceState]} />
           <Row label="Mic" value={micEnabled ? 'Enabled' : 'Disabled'} />
-          <Row label="STT active" value={recognitionActive ? 'Yes' : 'No'} />
-          <Row label="Echo Cancel" value={echoCancellation ? 'On' : 'Off'} />
+          <Row label="TTS" value={isSpeaking ? 'Speaking' : 'Off'} />
+          <Row label="Recognition" value={recognitionActive ? 'Active' : 'Off'} />
+          <Row label="AI Queue" value={String(aiQueueSize)} />
           <Row label="Transcript" value={currentTranscript || '—'} />
-          <Row label="Face" value={faceState} />
-          <Row label="AI" value={aiConnected ? 'Connected' : 'Disconnected'} />
-          <Row label="AI latency" value={thinkingSnapshot.aiLatencyMs != null ? `${thinkingSnapshot.aiLatencyMs}ms` : '—'} />
-          <Row label="TTS" value={ttsReady ? (isSpeaking ? 'Speaking' : 'Ready') : 'N/A'} />
-          <Row label="STT" value={micSupported ? 'Supported' : 'Unsupported'} />
-          <Row label="Status" value={speechState} />
-          <Row label="Emotion" value={String(emotion)} />
-          <Row label="Presence" value={String(presenceMode)} />
+          <Row label="Latency" value={snapshot.aiLatencyMs != null ? `${snapshot.aiLatencyMs}ms` : '—'} />
+          <Row label="FPS" value={String(engineSnapshot?.fps ?? '—')} />
+          <Row label="Camera" value={faceState} />
+          <Row label="Memory" value={`${memorySize} turns`} />
+          <Row label="Wake Word" value={wakeWordListening ? 'Listening' : 'Idle'} />
+          <Row label="Emotion" value={snapshot.emotion} />
+          <Row label="Echo Cancel" value={echoCancellation ? 'On' : 'Off'} />
+          <Row label="Think style" value={thinkingSnapshot.active ? thinkingSnapshot.style : '—'} />
           <div className="pt-2 border-t border-nova-border/40 mt-2 max-h-28 overflow-y-auto space-y-0.5">
             {logs.map((l, i) => (
               <p key={`${l}-${i}`} className="text-nova-muted truncate">

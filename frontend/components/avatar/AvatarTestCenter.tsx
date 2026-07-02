@@ -47,10 +47,13 @@ export default function AvatarTestCenter() {
         className={cn('nova-btn-primary w-full min-h-[44px] flex items-center justify-center gap-2', voiceSignals.isListening && 'border-nova-cyan/50')}
         onClick={() =>
           setVoiceSignals({
+            state: !voiceSignals.isListening ? 'LISTENING' : 'IDLE',
             isListening: !voiceSignals.isListening,
             userTalking: false,
             isSpeaking: false,
             isThinking: false,
+            viseme: 'neutral',
+            emotion: 'neutral',
           })
         }
       >

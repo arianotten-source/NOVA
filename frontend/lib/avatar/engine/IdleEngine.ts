@@ -39,7 +39,7 @@ export class IdleEngine {
 
   private scheduleAll(now: number, personality: PersonalityProfile) {
     const m = personality.blinkIntervalMul;
-    this.nextBlinkAt = now + randBetween(3000, 8000) * m;
+    this.nextBlinkAt = now + randBetween(3000, 7000) * m;
     this.nextLookAt = now + randBetween(8000, 20000) / personality.idleSpeedMul;
     this.nextSmileAt = now + randBetween(10000, 30000) / personality.idleSpeedMul;
     this.nextYawnAt = now + randBetween(120000, 240000);
@@ -54,7 +54,7 @@ export class IdleEngine {
 
     if (now >= this.nextBlinkAt && now > this.blinkUntil) {
       this.blinkUntil = now + 180;
-      this.nextBlinkAt = now + randBetween(3000, 8000) * personality.blinkIntervalMul;
+      this.nextBlinkAt = now + randBetween(3000, 7000) * personality.blinkIntervalMul;
       action = 'blink';
       isBlinking = true;
     }
@@ -91,6 +91,18 @@ export class IdleEngine {
 
     if (now < this.smileUntil) {
       smileBoost = 0.15 * personality.smileBias + 0.1;
+    }
+
+    if (inactiveMs > 20000 && inactiveMs < 60000 && Math.random() < 0.003) {
+      action = 'curious_glance';
+      this.lookX = randBetween(-10, 10);
+      this.lookY = randBetween(-6, 2);
+      this.pupilX = this.lookX * 0.5;
+      this.pupilY = this.lookY * 0.5;
+    }
+
+    if (inactiveMs > 60000 && Math.random() < 0.002) {
+      action = 'curious_glance';
     }
 
     if (inactiveMs > 180000 && now >= this.nextYawnAt) {

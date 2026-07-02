@@ -69,11 +69,14 @@ interface AvatarContextValue {
 const AvatarContext = createContext<AvatarContextValue | null>(null);
 
 const DEFAULT_VOICE: VoiceSignals = {
+  state: 'IDLE',
   isListening: false,
   isSpeaking: false,
   isThinking: false,
   speechEnergy: 0.5,
   userTalking: false,
+  viseme: 'neutral',
+  emotion: 'neutral',
 };
 
 export function AvatarProvider({ children }: { children: React.ReactNode }) {
@@ -288,11 +291,20 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
   }, [presenceProfile, presenceSettings.presenceMemoryEnabled]);
 
   const setThinking = useCallback((v: boolean) => {
-    setVoiceSignals({ isThinking: v, isSpeaking: false });
+    setVoiceSignals({
+      isThinking: v,
+      isSpeaking: false,
+      state: v ? 'THINKING' : 'IDLE',
+    });
   }, [setVoiceSignals]);
 
   const setSpeaking = useCallback((v: boolean) => {
-    setVoiceSignals({ isSpeaking: v, isThinking: false, speechEnergy: v ? 0.7 : 0 });
+    setVoiceSignals({
+      isSpeaking: v,
+      isThinking: false,
+      speechEnergy: v ? 0.7 : 0,
+      state: v ? 'SPEAKING' : 'IDLE',
+    });
   }, [setVoiceSignals]);
 
   const dispatchContextEvent = useCallback((type: ContextEventType) => {

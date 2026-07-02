@@ -26,6 +26,7 @@ const API_BASE = import.meta.env.DEV ? '' : '';
 
 export interface AiMessageOptions {
   signal?: AbortSignal;
+  memoryContext?: string;
 }
 
 export interface AiMessageResult {
@@ -47,7 +48,10 @@ export async function sendAiMessage(text: string, options: AiMessageOptions = {}
     const res = await fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text }),
+      body: JSON.stringify({
+        message: text,
+        memory: options.memoryContext ?? '',
+      }),
       signal: controller.signal,
     });
     clearTimeout(timer);

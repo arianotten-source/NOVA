@@ -15,6 +15,7 @@ import { resolvePersonality } from './personalities';
 import { hardwareBridge } from './HardwareBridge';
 import { presenceEngine } from '../presence/PresenceEngine';
 import { thinkingEngine } from '@/lib/thinking/ThinkingEngine';
+import { lipSyncEngine } from '@/lib/voice/v2/lipSync';
 import {
   DEFAULT_PRESENCE_PROFILE,
   DEFAULT_PRESENCE_SETTINGS,
@@ -80,7 +81,10 @@ export class AvatarEngine {
     }
 
     const contextActive = this.context.update(input.now);
-    const voiceOut = this.voice.evaluate(input.voice, dt);
+    const voiceInput = input.voice.isSpeaking
+      ? { ...input.voice, viseme: lipSyncEngine.tick(dt, input.voice.speechEnergy) }
+      : input.voice;
+    const voiceOut = this.voice.evaluate(voiceInput, dt);
 
     let desiredState: AvatarStateId = 'idle';
     let desiredPriority = 10;
@@ -226,6 +230,7 @@ export class AvatarEngine {
           -0.5,
           basePose.smileAmount +
             idleOut.smileBoost +
+            voiceOut.smileBoost +
             (animFrame.smileAmount ?? 0) * 0.3 +
             micro.mouthCornerLeft * 0.2 +
             micro.mouthCornerRight * 0.2 +

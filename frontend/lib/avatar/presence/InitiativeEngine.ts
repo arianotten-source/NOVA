@@ -28,6 +28,10 @@ export function evaluateInitiative(input: PresenceInput, dayPhase: DayPhase): {
   const trustChance = trustInitiativeChance(profile.trustLevel);
   const candidates: InitiativeCandidate[] = [];
 
+  if (inactiveMs > 60000 && inactiveMs < 90000) {
+    candidates.push({ message: 'Kan ik ergens mee helpen?', priority: 35, cooldownMs: 300000 });
+  }
+
   if (inactiveMs > 90000 && inactiveMs < 120000) {
     candidates.push({ message: 'Ik ben hier.', priority: 30, cooldownMs: 300000 });
   }

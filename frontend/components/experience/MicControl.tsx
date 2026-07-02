@@ -14,11 +14,14 @@ export default function MicControl() {
 
   useEffect(() => {
     setVoiceSignals({
+      state: isListening ? 'LISTENING' : 'IDLE',
       isListening,
       userTalking: Boolean(transcript),
       speechEnergy: transcript ? 0.65 : 0.35,
       isSpeaking: false,
       isThinking: false,
+      viseme: 'neutral',
+      emotion: 'neutral',
     });
   }, [isListening, transcript, setVoiceSignals]);
 

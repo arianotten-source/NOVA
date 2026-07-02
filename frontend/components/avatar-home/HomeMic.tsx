@@ -1,15 +1,16 @@
 import { Mic, MicOff } from 'lucide-react';
 import { useVoicePipeline } from '@/context/VoicePipelineContext';
+import { VoiceState } from '@/lib/voice/v2/types';
 import { useClientOnly } from '@/hooks/useClientOnly';
 import { cn } from '@/lib/utils';
 
 export default function HomeMic() {
   const client = useClientOnly();
-  const { phase, micSupported, toggleListening } = useVoicePipeline();
+  const { voiceState, micSupported, toggleListening } = useVoicePipeline();
 
-  const isListening = phase === 'listening';
-  const isThinking = phase === 'thinking' || phase === 'generating';
-  const disabled = phase === 'speaking';
+  const isListening = voiceState === VoiceState.LISTENING;
+  const isThinking = voiceState === VoiceState.THINKING || voiceState === VoiceState.PROCESSING;
+  const disabled = voiceState === VoiceState.SPEAKING;
 
   if (!client || !micSupported) return null;
 
