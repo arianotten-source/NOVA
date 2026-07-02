@@ -84,6 +84,15 @@ export interface AvatarSettings {
   presenceMemoryEnabled?: boolean;
   initiativeEnabled?: boolean;
   localProcessingOnly?: boolean;
+  alwaysListening?: boolean;
+  wakeWordEnabled?: boolean;
+  eyeTrackingEnabled?: boolean;
+  followUserEnabled?: boolean;
+  presenceDetectionEnabled?: boolean;
+  lipSyncEnabled?: boolean;
+  idleAnimationsEnabled?: boolean;
+  autonomousPersonality?: boolean;
+  silentMode?: boolean;
 }
 
 export type AutoEmotionMap = Record<AutoEmotionId, boolean>;

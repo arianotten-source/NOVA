@@ -3,6 +3,7 @@ const WAKE_PATTERNS = [
   /\bh[éeèeë]i\s+nova\b/i,
   /\bhé\s+nova\b/i,
   /\bn\.?\s*o\.?\s*v\.?\s*a\.?\b/i,
+  /\bnova\b/i,
 ];
 
 const STOP_PATTERNS = [

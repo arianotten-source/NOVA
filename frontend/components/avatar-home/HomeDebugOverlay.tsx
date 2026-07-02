@@ -67,8 +67,15 @@ export default function HomeDebugOverlay() {
       },
       emotion: { loaded: Boolean(engineSnapshot?.pose.expressionId) },
       presence: {
+        mode: engineSnapshot?.presence?.mode ?? null,
+        userStatus: engineSnapshot?.presence?.userStatus ?? null,
         energy: engineSnapshot?.presence?.energy ?? null,
+        curiosity: engineSnapshot?.presence?.curiosity ?? null,
+        attention: engineSnapshot?.presence?.attention ?? null,
         whisper: engineSnapshot?.presence?.whisper ?? null,
+        moodLabel: engineSnapshot?.presence?.moodVector
+          ? moodLabelFromVector(engineSnapshot.presence.moodVector)
+          : null,
       },
       thinking: {
         active: thinkingSnapshot.active,
@@ -86,6 +93,8 @@ export default function HomeDebugOverlay() {
         faceDetected: cameraSignals.faceDetected,
         personKnown: cameraSignals.personKnown,
         personName: cameraSignals.personName,
+        faceScale: cameraSignals.faceScale,
+        trackingFps: cameraSignals.trackingFps,
       },
       mediaPipe: { ready: cameraEngine.isMediaPipeReady() },
       lipSync: { viseme: voiceSignals.viseme },
@@ -138,7 +147,12 @@ export default function HomeDebugOverlay() {
           </Section>
 
           <Section title="Presence">
+            <Row label="Mode" value={engineTelemetry.presence.mode ?? '—'} />
+            <Row label="User" value={engineTelemetry.presence.userStatus ?? '—'} />
             <Row label="Energy" value={String(engineTelemetry.presence.energy ?? '—')} />
+            <Row label="Curiosity" value={String(engineTelemetry.presence.curiosity ?? '—')} />
+            <Row label="Attention" value={String(engineTelemetry.presence.attention ?? '—')} />
+            <Row label="Mood" value={engineTelemetry.presence.moodLabel ?? '—'} />
             <Row label="Whisper" value={engineTelemetry.presence.whisper ?? '—'} />
           </Section>
 
@@ -148,6 +162,7 @@ export default function HomeDebugOverlay() {
             <Row label="Mic" value={micEnabled ? 'On' : 'Off'} />
             <Row label="STT" value={recognitionActive ? 'Active' : 'Off'} />
             <Row label="Emotion" value={voiceSnapshot.emotion} />
+            <Row label="Reply mood" value={voiceSignals.replyEmotion ?? '—'} />
             <Row label="Echo" value={echoCancellation ? 'On' : 'Off'} />
             <Row label="Queue" value={String(aiQueueSize)} />
             <Row label="Transcript" value={currentTranscript || '—'} />
@@ -169,9 +184,11 @@ export default function HomeDebugOverlay() {
             <Row label="Style" value={thinkingSnapshot.active ? thinkingSnapshot.style : '—'} />
           </Section>
 
-          <Section title="Camera / MediaPipe">
+          <Section title="Camera / Eye Tracking">
             <Row label="Camera" value={faceState} />
             <Row label="Permission" value={cameraSignals.permission} />
+            <Row label="Face scale" value={String(cameraSignals.faceScale?.toFixed(2) ?? '—')} />
+            <Row label="Camera FPS" value={String(cameraSignals.trackingFps || '—')} />
             <Row
               label="MediaPipe"
               value={
@@ -258,4 +275,20 @@ function screenLabel(path: string) {
   if (path === '/' || path === '') return 'AvatarHome';
   if (path.startsWith('/settings')) return 'Settings';
   return path.slice(1) || 'Unknown';
+}
+
+function moodLabelFromVector(v: {
+  happy: number;
+  calm: number;
+  curious: number;
+  thinking: number;
+  sleepy: number;
+  concerned: number;
+  excited: number;
+}) {
+  const entries = Object.entries(v) as [string, number][];
+  entries.sort((a, b) => b[1] - a[1]);
+  const top = entries[0];
+  if (!top) return '—';
+  return `${top[0]} ${Math.round(top[1] * 100)}%`;
 }

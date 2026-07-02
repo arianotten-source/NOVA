@@ -104,10 +104,19 @@ export const DEFAULT_AVATAR_SETTINGS = {
   expressionIntensity: 'normal' as const,
   theme: 'classic' as const,
   autonomousAvatar: true,
-  cameraEnabled: false,
+  cameraEnabled: true,
   presenceMemoryEnabled: true,
   initiativeEnabled: true,
   localProcessingOnly: true,
+  alwaysListening: true,
+  wakeWordEnabled: true,
+  eyeTrackingEnabled: true,
+  followUserEnabled: true,
+  presenceDetectionEnabled: true,
+  lipSyncEnabled: true,
+  idleAnimationsEnabled: true,
+  autonomousPersonality: true,
+  silentMode: true,
 };
 
 export function getExpressionById(id: AvatarExpressionId) {

@@ -21,10 +21,15 @@ export class CameraEngine {
     userLooking: false,
     faceX: 0,
     faceY: 0,
+    faceScale: 0.5,
+    trackingFps: 0,
     personId: null,
     personName: null,
     personKnown: false,
   };
+  private smoothScale = 0.5;
+  private frameCount = 0;
+  private fpsAccum = 0;
   private listeners = new Set<(s: CameraSignals) => void>();
   private lastEmitAt = 0;
   private emitScheduled = false;
@@ -118,6 +123,8 @@ export class CameraEngine {
         userLooking: false,
         faceX: 0,
         faceY: 0,
+        faceScale: 0.5,
+        trackingFps: 0,
         personId: null,
         personName: null,
         personKnown: false,
@@ -159,6 +166,8 @@ export class CameraEngine {
       userLooking: false,
       faceX: 0,
       faceY: 0,
+      faceScale: 0.5,
+      trackingFps: 0,
       personId: null,
       personName: null,
       personKnown: false,
@@ -179,6 +188,15 @@ export class CameraEngine {
     const tick = () => {
       if (!this.video) return;
 
+      this.frameCount++;
+      this.fpsAccum += 16;
+      if (this.fpsAccum >= 1000) {
+        const fps = Math.round((this.frameCount * 1000) / this.fpsAccum);
+        this.frameCount = 0;
+        this.fpsAccum = 0;
+        this.signals = { ...this.signals, trackingFps: fps };
+      }
+
       try {
         if (this.useMediaPipe && this.mediaPipe?.isReady()) {
           const result = this.mediaPipe.detect(this.video, performance.now());
@@ -187,23 +205,27 @@ export class CameraEngine {
             if (result.faceDetected) {
               this.smoothX = lerp(this.smoothX, result.faceX, 0.07);
               this.smoothY = lerp(this.smoothY, result.faceY, 0.07);
+              this.smoothScale = lerp(this.smoothScale, result.faceScale, 0.08);
               this.signals = {
                 ...this.signals,
                 faceDetected: true,
                 userLooking: true,
                 faceX: this.smoothX,
                 faceY: this.smoothY,
+                faceScale: this.smoothScale,
               };
             } else {
               this.lastLandmarks = null;
-              this.smoothX = lerp(this.smoothX, 0, 0.04);
-              this.smoothY = lerp(this.smoothY, 0, 0.04);
+              this.smoothX = lerp(this.smoothX, 0, 0.025);
+              this.smoothY = lerp(this.smoothY, 0, 0.025);
+              this.smoothScale = lerp(this.smoothScale, 0.5, 0.03);
               this.signals = {
                 ...this.signals,
                 faceDetected: false,
                 userLooking: false,
                 faceX: this.smoothX,
                 faceY: this.smoothY,
+                faceScale: this.smoothScale,
               };
             }
             this.emitThrottled();
@@ -232,14 +254,17 @@ export class CameraEngine {
           const faceLikely = weight > w * h * 8 && brightSum / (data.length / 4) > 30;
           let targetX = 0;
           let targetY = 0;
+          let targetScale = 0.5;
 
           if (faceLikely) {
             targetX = ((sumX / weight / w) - 0.5) * 2;
             targetY = ((sumY / weight / h) - 0.5) * 2;
+            targetScale = Math.max(0.2, Math.min(1, weight / (w * h * 20)));
           }
 
-          this.smoothX = lerp(this.smoothX, faceLikely ? targetX : 0, faceLikely ? 0.06 : 0.04);
-          this.smoothY = lerp(this.smoothY, faceLikely ? targetY : 0, faceLikely ? 0.06 : 0.04);
+          this.smoothX = lerp(this.smoothX, faceLikely ? targetX : 0, faceLikely ? 0.06 : 0.025);
+          this.smoothY = lerp(this.smoothY, faceLikely ? targetY : 0, faceLikely ? 0.06 : 0.025);
+          this.smoothScale = lerp(this.smoothScale, targetScale, faceLikely ? 0.08 : 0.03);
 
           this.signals = {
             ...this.signals,
@@ -247,6 +272,7 @@ export class CameraEngine {
             userLooking: faceLikely,
             faceX: Math.max(-1, Math.min(1, this.smoothX)),
             faceY: Math.max(-1, Math.min(1, this.smoothY)),
+            faceScale: this.smoothScale,
           };
           this.emitThrottled();
         }

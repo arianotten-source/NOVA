@@ -15,10 +15,12 @@ import { voiceLog } from '@/lib/voice/voiceLogger';
 import { setSpeaking as setGlobalSpeaking, voiceState } from '@/lib/voice/voiceState';
 import { requestMicrophonePermission } from '@/lib/voice/permissions';
 import { conversationMemory } from './conversationMemory';
-import { containsWakeWord, stripWakeWord, isStopCommand } from './hotwordEngine';
-import { playActivationSound } from './activationSound';
+import { isStopCommand } from './hotwordEngine';
+import { wakeWordEngine } from './WakeWordEngine';
 import { parseReplyEmotion } from './replyEmotionParser';
-import { requestScreenWakeLock, vibrateActivation } from '@/lib/platform/androidVoice';
+import { requestScreenWakeLock } from '@/lib/platform/androidVoice';
+import type { PresenceSettings } from '@/lib/avatar/presence/types';
+import { DEFAULT_PRESENCE_V4 } from '@/lib/avatar/presence/presenceConfig';
 import { lipSyncEngine } from './lipSync';
 import { speechRecognitionManager } from './speechRecognitionManager';
 import { isDuplicateTranscript, normalizeTranscript } from './transcriptUtils';
@@ -77,6 +79,11 @@ export class VoiceEngineV2 {
   private pendingSmartCall: SmartCallRequest | null = null;
   private initialized = false;
   private lastDisplayText: string | null = null;
+  private presenceSettings: PresenceSettings = { ...DEFAULT_PRESENCE_V4 };
+
+  setPresenceSettings(settings: PresenceSettings) {
+    this.presenceSettings = settings;
+  }
 
   init(): boolean {
     if (this.initialized) return true;
@@ -219,18 +226,21 @@ export class VoiceEngineV2 {
     }, 700);
   }
 
-  private haltRecognition() {
+  private haltRecognition(stopVad = false) {
     this.clearTimers();
     speechRecognitionManager.abort();
-    voiceActivityDetector.stop();
-    this.wakeWordListening = false;
+    if (stopVad) {
+      voiceActivityDetector.stop();
+      this.wakeWordListening = false;
+    }
   }
 
   private muteMic() {
     this.micEnabled = false;
     voiceState.micEnabled = false;
     setMicTrackMuted(true);
-    this.haltRecognition();
+    speechRecognitionManager.abort();
+    this.clearTimers();
   }
 
   private async unmuteMic() {
@@ -244,6 +254,7 @@ export class VoiceEngineV2 {
   async startHotwordListen(): Promise<void> {
     if (this.state !== VoiceState.IDLE) return;
     if (voiceState.isSpeaking) return;
+    if (!this.presenceSettings.wakeWordEnabled) return;
 
     const perm = await requestMicrophonePermission();
     if (perm !== 'granted') return;
@@ -302,7 +313,7 @@ export class VoiceEngineV2 {
     }
 
     await this.transition(VoiceState.LISTENING);
-    this.haltRecognition();
+    this.haltRecognition(false);
     speechRecognitionManager.start('command');
     this.lastSpeechAt = Date.now();
     voiceLog.emit('Microfoon gestart');
@@ -346,7 +357,7 @@ export class VoiceEngineV2 {
     stopSpeaking();
     setGlobalSpeaking(false);
     lipSyncEngine.reset();
-    this.haltRecognition();
+    this.haltRecognition(!this.presenceSettings.alwaysListening);
     this.aiInFlight = false;
     this.state = VoiceState.IDLE;
     this.avatarBridge?.setThinking(false);
@@ -365,15 +376,13 @@ export class VoiceEngineV2 {
 
     if (mode === 'hotword') {
       const probe = (finalPart || interim).trim();
-      if (containsWakeWord(probe)) {
+      const { detected, remainder } = wakeWordEngine.detect(probe);
+      if (detected) {
         this.wakeWordDetected = true;
         this.wakeWordListening = false;
         speechRecognitionManager.stop();
-        playActivationSound();
-        vibrateActivation();
         this.pulseWakeActivation();
         voiceLog.emit('Microfoon gestart', 'Hey Nova');
-        const remainder = stripWakeWord(probe);
         void this.startListening(false);
         if (remainder) {
           this.accumulated = remainder;
@@ -432,7 +441,7 @@ export class VoiceEngineV2 {
     if (voiceState.isSpeaking) return;
 
     this.intentionalFinalize = true;
-    this.haltRecognition();
+    this.haltRecognition(false);
 
     const raw = (this.accumulated + this.interimText).trim() || this.accumulated.trim();
     this.interimText = '';
@@ -442,7 +451,7 @@ export class VoiceEngineV2 {
       this.intentionalFinalize = false;
       this.continueListenMode = false;
       await this.transition(VoiceState.IDLE);
-      if (!this.bypassHotword) void this.startHotwordListen();
+      if (!this.bypassHotword && this.presenceSettings.wakeWordEnabled) void this.startHotwordListen();
       return;
     }
 
@@ -654,7 +663,7 @@ export class VoiceEngineV2 {
     this.abortController = abort;
 
     await this.transition(VoiceState.THINKING);
-    thinkingEngine.begin(text);
+    thinkingEngine.begin(text, false);
     this.thinkingSnapshot = thinkingEngine.getSnapshot();
     voiceLog.emit('Thinking gestart');
 
@@ -783,13 +792,13 @@ export class VoiceEngineV2 {
       if (voiceState.isSpeaking) return;
       await this.unmuteMic();
       await this.transition(VoiceState.IDLE);
-      if (!this.bypassHotword) void this.startHotwordListen();
+      if (!this.bypassHotword && this.presenceSettings.wakeWordEnabled) void this.startHotwordListen();
     }, delay);
   }
 
   destroy() {
     this.clearTimers();
-    this.haltRecognition();
+    this.haltRecognition(true);
     speechRecognitionManager.destroy();
     releaseMicStream();
     this.listeners.clear();

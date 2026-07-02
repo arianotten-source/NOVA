@@ -226,6 +226,18 @@ export function AvatarProvider({ children }: { children: React.ReactNode }) {
       initiativeEnabled: status?.settings.initiativeEnabled ?? DEFAULT_PRESENCE_SETTINGS.initiativeEnabled,
       localProcessingOnly:
         status?.settings.localProcessingOnly ?? DEFAULT_PRESENCE_SETTINGS.localProcessingOnly,
+      alwaysListening: status?.settings.alwaysListening ?? DEFAULT_PRESENCE_SETTINGS.alwaysListening,
+      wakeWordEnabled: status?.settings.wakeWordEnabled ?? DEFAULT_PRESENCE_SETTINGS.wakeWordEnabled,
+      eyeTrackingEnabled: status?.settings.eyeTrackingEnabled ?? DEFAULT_PRESENCE_SETTINGS.eyeTrackingEnabled,
+      followUserEnabled: status?.settings.followUserEnabled ?? DEFAULT_PRESENCE_SETTINGS.followUserEnabled,
+      presenceDetectionEnabled:
+        status?.settings.presenceDetectionEnabled ?? DEFAULT_PRESENCE_SETTINGS.presenceDetectionEnabled,
+      lipSyncEnabled: status?.settings.lipSyncEnabled ?? DEFAULT_PRESENCE_SETTINGS.lipSyncEnabled,
+      idleAnimationsEnabled:
+        status?.settings.idleAnimationsEnabled ?? DEFAULT_PRESENCE_SETTINGS.idleAnimationsEnabled,
+      autonomousPersonality:
+        status?.settings.autonomousPersonality ?? DEFAULT_PRESENCE_SETTINGS.autonomousPersonality,
+      silentMode: status?.settings.silentMode ?? DEFAULT_PRESENCE_SETTINGS.silentMode,
     }),
     [status?.settings]
   );

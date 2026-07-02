@@ -18,6 +18,9 @@ import {
 } from './MicroAnimationLibrary';
 import { lerpMood, normalizeBlend } from '../engine/MoodBlend';
 import type { MoodBlend } from '../engine/types';
+import { cameraTracking } from './CameraTracking';
+import { greetingEngine } from './GreetingEngine';
+import type { PresenceUserStatus } from './types';
 
 const SLEEP_AFTER_MS = 600000;
 const DROWSY_AFTER_MS = 300000;
@@ -48,6 +51,8 @@ export class PresenceEngine {
   });
   private lastWhisper: string | null = null;
   private whisperUntil = 0;
+  private userStatus: PresenceUserStatus = 'nobody';
+  private userAppearedThisTick = false;
 
   tick(input: PresenceInput): PresenceSnapshot {
     const date = new Date(input.now);
@@ -57,6 +62,24 @@ export class PresenceEngine {
     const phaseBlink = dayPhaseBlinkMul(dayPhase);
 
     this.updatePresenceMode(input);
+
+    if (input.settings.presenceDetectionEnabled) {
+      const track = cameraTracking.tick(input.now, input.camera);
+      this.userStatus = track.userStatus;
+      this.userAppearedThisTick = track.userStatus === 'appearing';
+    } else {
+      this.userStatus = input.camera.faceDetected ? 'nearby' : 'nobody';
+      this.userAppearedThisTick = false;
+    }
+
+    const greeting =
+      input.settings.initiativeEnabled && this.userAppearedThisTick
+        ? greetingEngine.evaluate(input.now, true, input.profile, input.camera.personName)
+        : null;
+    if (greeting) {
+      this.lastWhisper = greeting;
+      this.whisperUntil = input.now + 5000;
+    }
 
     const targetVector = moodBlendToVector(
       normalizeBlend({
@@ -84,6 +107,7 @@ export class PresenceEngine {
 
     return {
       mode: this.mode,
+      userStatus: this.userStatus,
       dayPhase,
       energy,
       curiosity,
@@ -149,12 +173,12 @@ export class PresenceEngine {
     this.mode = mode;
     this.modeEnteredAt = now;
     if (mode === 'welcome_home') {
-      this.lastWhisper = 'Welkom terug.';
-      this.whisperUntil = now + 4500;
+      this.lastWhisper = null;
+      this.whisperUntil = 0;
     }
     if (mode === 'waking') {
-      this.lastWhisper = 'Hallo.';
-      this.whisperUntil = now + 3500;
+      this.lastWhisper = null;
+      this.whisperUntil = 0;
     }
   }
 

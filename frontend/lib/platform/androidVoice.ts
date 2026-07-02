@@ -22,11 +22,9 @@ export function releaseScreenWakeLock(): void {
 }
 
 export function vibrateActivation(): void {
-  if (!isMobileDevice() || typeof navigator === 'undefined' || !navigator.vibrate) return;
-  navigator.vibrate([12, 40, 18]);
+  /* silent mode — no haptics */
 }
 
 export function vibrateListeningPulse(): void {
-  if (!isMobileDevice() || typeof navigator === 'undefined' || !navigator.vibrate) return;
-  navigator.vibrate(8);
+  /* silent mode */
 }

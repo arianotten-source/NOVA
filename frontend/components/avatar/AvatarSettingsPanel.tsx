@@ -131,6 +131,40 @@ export default function AvatarSettingsPanel() {
       />
 
       <div className="pt-2 border-t border-nova-border space-y-3">
+        <span className="text-xs text-nova-muted uppercase tracking-wider">Presence Intelligence</span>
+
+        {(
+          [
+            ['alwaysListening', 'Always Listening', 'Microfoon blijft actief na toestemming'],
+            ['wakeWordEnabled', 'Wake Word', 'Reageert op Hey Nova / Nova'],
+            ['eyeTrackingEnabled', 'Eye Tracking', 'Ogen volgen gezicht via camera'],
+            ['followUserEnabled', 'Follow User', 'Pupillen volgen beweging'],
+            ['presenceDetectionEnabled', 'Presence Detection', 'Detecteert aanwezigheid'],
+            ['lipSyncEnabled', 'Lip Sync', 'Mond synchroon tijdens spreken'],
+            ['idleAnimationsEnabled', 'Idle Animations', 'Natuurlijke idle bewegingen'],
+            ['autonomousPersonality', 'Autonomous Personality', 'Zelfstandige emoties'],
+            ['silentMode', 'Silent Mode', 'Geen geluiden — alleen visuele feedback'],
+          ] as const
+        ).map(([key, label, hint]) => (
+          <label
+            key={key}
+            className="flex items-center justify-between gap-4 min-h-[44px] px-3 py-2 rounded-lg bg-nova-dark border border-nova-border cursor-pointer"
+          >
+            <div>
+              <span className="text-sm text-gray-100">{label}</span>
+              <p className="text-xs text-nova-muted">{hint}</p>
+            </div>
+            <input
+              type="checkbox"
+              className="w-5 h-5 accent-nova-cyan"
+              checked={s[key] ?? true}
+              onChange={(e) => updateSettings({ [key]: e.target.checked })}
+            />
+          </label>
+        ))}
+      </div>
+
+      <div className="pt-2 border-t border-nova-border space-y-3">
         <span className="text-xs text-nova-muted uppercase tracking-wider">Privacy &amp; Presence</span>
 
         <label className="flex items-center justify-between gap-4 min-h-[44px] px-3 py-2 rounded-lg bg-nova-dark border border-nova-border cursor-pointer">

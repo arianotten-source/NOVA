@@ -16,10 +16,10 @@ import { resolvePersonality } from './personalities';
 import { hardwareBridge } from './HardwareBridge';
 import { futureHooks } from '@/lib/hooks/futureHooks';
 import { presenceEngine } from '../presence/PresenceEngine';
+import { eyeContactEngine } from '../presence/EyeContactEngine';
+import { moodBlendEngine } from '../presence/MoodBlendEngine';
 import { thinkingEngine } from '@/lib/thinking/ThinkingEngine';
 import { lipSyncEngine } from '@/lib/voice/v2/lipSync';
-import { moodForEmotion } from '@/lib/thinking/thinkingEmotions';
-import type { ResponseEmotion } from '@/lib/thinking/thinkingEmotions';
 import {
   DEFAULT_PRESENCE_PROFILE,
   DEFAULT_PRESENCE_SETTINGS,
@@ -43,7 +43,6 @@ export class AvatarEngine {
   private frameCount = 0;
   private fpsAccum = 0;
   private autonomous = true;
-  private replyEmotionUntil = 0;
   private lastWakeActivation = 0;
 
   pushContext(type: Parameters<ContextEngine['push']>[0], now: number, priority?: number) {
@@ -88,9 +87,12 @@ export class AvatarEngine {
     }
 
     const contextActive = this.context.update(input.now);
-    const voiceInput = input.voice.isSpeaking
-      ? { ...input.voice, viseme: lipSyncEngine.tick(dt, input.voice.speechEnergy) }
-      : input.voice;
+    let voiceInput = input.voice;
+    if (input.voice.isSpeaking && (input.presenceSettings?.lipSyncEnabled ?? true)) {
+      voiceInput = { ...input.voice, viseme: lipSyncEngine.tick(dt, input.voice.speechEnergy) };
+    } else if (!input.voice.isSpeaking) {
+      lipSyncEngine.decay(dt);
+    }
     const voiceOut = this.voice.evaluate(voiceInput, dt);
 
     let desiredState: AvatarStateId = 'idle';
@@ -154,13 +156,16 @@ export class AvatarEngine {
     this.lastWakeActivation = input.voice.wakeActivation;
 
     if (input.voice.replyEmotion && input.voice.replyEmotion !== 'neutral') {
-      const mood = moodForEmotion(input.voice.replyEmotion as ResponseEmotion);
-      this.targetMood = mood;
-      this.replyEmotionUntil = input.now + 4500;
+      /* mood applied via moodBlendEngine */
     }
 
-    if (input.now > this.replyEmotionUntil) {
-      /* emotion decay handled via mood lerp */
+    const moodBlend = moodBlendEngine.tick(
+      this.mood,
+      input.voice.replyEmotion,
+      dt
+    );
+    if (input.presenceSettings?.autonomousPersonality ?? true) {
+      this.targetMood = moodBlend.mood;
     }
 
     const animFrame = this.animation.update(input.now);
@@ -175,7 +180,7 @@ export class AvatarEngine {
       isBlinking: false,
     };
 
-    if (input.autonomous && this.currentState === 'idle' && !voiceOut.state) {
+    if (input.autonomous && this.currentState === 'idle' && !voiceOut.state && (input.presenceSettings?.idleAnimationsEnabled ?? true)) {
       idleOut = this.idle.update(input.now, personality, inactiveMs);
       if (idleOut.isBlinking) this.animation.playOneShot('blink', input.now);
     }
@@ -203,11 +208,19 @@ export class AvatarEngine {
       this.mood = presenceEngine.applyMoodModifiers(this.mood, presence.moodModifiers);
     }
 
+    const contact = eyeContactEngine.tick(
+      input.now,
+      input.camera,
+      input.presenceSettings?.eyeTrackingEnabled ?? true,
+      input.presenceSettings?.followUserEnabled ?? true,
+      presence.userStatus
+    );
+
     if (presence.mode === 'sleeping' && input.autonomous && !voiceOut.state) {
       this.currentState = 'sleeping';
     }
 
-    if (input.camera.userLooking && input.camera.permission === 'granted') {
+    if (input.camera.userLooking && input.camera.permission === 'granted' && !contact.eyeContactScore) {
       idleOut.eyeOffsetX += input.camera.faceX * 0.15;
       idleOut.eyeOffsetY += input.camera.faceY * 0.1;
     }
@@ -224,6 +237,7 @@ export class AvatarEngine {
       ...basePose,
       eyeOffsetX:
         basePose.eyeOffsetX +
+        contact.eyeOffsetX +
         eyeOut.eyeOffsetX +
         idleOut.eyeOffsetX +
         (animFrame.headTilt ?? 0) * 0.1 +
@@ -231,6 +245,7 @@ export class AvatarEngine {
         (thinkPose?.eyeOffsetX ?? 0),
       eyeOffsetY:
         basePose.eyeOffsetY +
+        contact.eyeOffsetY +
         eyeOut.eyeOffsetY +
         idleOut.eyeOffsetY +
         (animFrame.eyeOffsetY ?? 0) +
@@ -238,9 +253,9 @@ export class AvatarEngine {
         micro.floatY * 0.02 +
         (thinkPose?.eyeOffsetY ?? 0),
       pupilOffsetX:
-        eyeOut.pupilOffsetX + idleOut.pupilOffsetX + input.camera.faceX * 0.2 + micro.lookX * 0.08 + (thinkPose?.pupilOffsetX ?? 0),
+        contact.pupilOffsetX + eyeOut.pupilOffsetX + idleOut.pupilOffsetX + micro.lookX * 0.08 + (thinkPose?.pupilOffsetX ?? 0),
       pupilOffsetY:
-        eyeOut.pupilOffsetY + idleOut.pupilOffsetY + input.camera.faceY * 0.15 + micro.lookY * 0.08 + (thinkPose?.pupilOffsetY ?? 0),
+        contact.pupilOffsetY + eyeOut.pupilOffsetY + idleOut.pupilOffsetY + micro.lookY * 0.08 + (thinkPose?.pupilOffsetY ?? 0),
       headTilt: basePose.headTilt + eyeOut.headTilt + idleOut.headTilt + (animFrame.headTilt ?? 0),
       headNod: (animFrame.headNod ?? 0) + voiceOut.headNod + (idleOut.action === 'yawn' ? 3 : 0) + micro.yawnAmount * 2,
       mouthOpen: Math.max(voiceOut.mouthOpen, animFrame.mouthOpen ?? 0) + micro.sighAmount * 0.1,
@@ -251,7 +266,7 @@ export class AvatarEngine {
         (thinkPose?.browRaise ?? 0) -
         (micro.browLeftY + micro.browRightY) * 0.02 -
         (thinkPose?.furrow ?? 0) * 0.3,
-      eyeScale: basePose.eyeScale + voiceOut.eyeScaleBoost + eyeOut.eyeScaleBoost + (micro.pupilScale - 1) * 0.5,
+      eyeScale: basePose.eyeScale + voiceOut.eyeScaleBoost + eyeOut.eyeScaleBoost + contact.eyeScaleBoost + (micro.pupilScale - 1) * 0.5,
       smileAmount: Math.min(
         1,
         Math.max(
@@ -270,7 +285,8 @@ export class AvatarEngine {
         animFrame.glowPulse ?? 0,
         micro.glowIntensity,
         thinkPose?.glowPulse ?? 0,
-        this.currentState === 'thinking' ? 0.35 : 0
+        input.voice.isListening ? 0.25 : 0,
+        this.currentState === 'thinking' ? 0.4 : 0
       ),
       isBlinking: eyeOut.isBlinking || idleOut.isBlinking || micro.eyeOpenLeft < 0.2,
       microAnim: micro,

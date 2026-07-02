@@ -68,7 +68,7 @@ const VoicePipelineContext = createContext<VoicePipelineValue | null>(null);
 
 export function VoicePipelineProvider({ children }: { children: React.ReactNode }) {
   const client = useClientOnly();
-  const { setVoiceSignals, setThinking, setSpeaking } = useAvatar();
+  const { setVoiceSignals, setThinking, setSpeaking, status } = useAvatar();
 
   const [snapshot, setSnapshot] = useState<VoiceSnapshot>(voiceEngineV2.getSnapshot());
   const [micPermission, setMicPermission] = useState<PermissionResult>('prompt');
@@ -87,7 +87,6 @@ export function VoicePipelineProvider({ children }: { children: React.ReactNode 
     if (!ok) return;
 
     const unsub = voiceEngineV2.subscribe(setSnapshot);
-
     const hotwordDelay = isMobileDevice() ? 2500 : 400;
     const hotwordTimer = window.setTimeout(() => {
       void voiceEngineV2.startHotwordListen().catch(() => {});
@@ -104,6 +103,25 @@ export function VoicePipelineProvider({ children }: { children: React.ReactNode 
       unsub();
     };
   }, [client, setVoiceSignals, setThinking, setSpeaking]);
+
+  useEffect(() => {
+    if (!client || !status?.settings) return;
+    voiceEngineV2.setPresenceSettings({
+      cameraEnabled: status.settings.cameraEnabled ?? true,
+      presenceMemoryEnabled: status.settings.presenceMemoryEnabled ?? true,
+      initiativeEnabled: status.settings.initiativeEnabled ?? true,
+      localProcessingOnly: status.settings.localProcessingOnly ?? true,
+      alwaysListening: status.settings.alwaysListening ?? true,
+      wakeWordEnabled: status.settings.wakeWordEnabled ?? true,
+      eyeTrackingEnabled: status.settings.eyeTrackingEnabled ?? true,
+      followUserEnabled: status.settings.followUserEnabled ?? true,
+      presenceDetectionEnabled: status.settings.presenceDetectionEnabled ?? true,
+      lipSyncEnabled: status.settings.lipSyncEnabled ?? true,
+      idleAnimationsEnabled: status.settings.idleAnimationsEnabled ?? true,
+      autonomousPersonality: status.settings.autonomousPersonality ?? true,
+      silentMode: status.settings.silentMode ?? true,
+    });
+  }, [client, status?.settings]);
 
   useEffect(() => {
     if (!client || !isMobileDevice()) return;

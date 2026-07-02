@@ -12,6 +12,16 @@ export type PresenceMode =
   | 'welcome_home'
   | 'health_alert';
 
+/** v4 user-presence states for eye contact & greeting */
+export type PresenceUserStatus =
+  | 'nobody'
+  | 'appearing'
+  | 'nearby'
+  | 'left'
+  | 'right'
+  | 'moving'
+  | 'departing';
+
 export interface MoodVector {
   happy: number;
   calm: number;
@@ -40,6 +50,15 @@ export interface PresenceSettings {
   presenceMemoryEnabled: boolean;
   initiativeEnabled: boolean;
   localProcessingOnly: boolean;
+  alwaysListening: boolean;
+  wakeWordEnabled: boolean;
+  eyeTrackingEnabled: boolean;
+  followUserEnabled: boolean;
+  presenceDetectionEnabled: boolean;
+  lipSyncEnabled: boolean;
+  idleAnimationsEnabled: boolean;
+  autonomousPersonality: boolean;
+  silentMode: boolean;
 }
 
 export interface EnvironmentContext {
@@ -71,6 +90,7 @@ export interface MicroAnimChannels {
 
 export interface PresenceSnapshot {
   mode: PresenceMode;
+  userStatus: PresenceUserStatus;
   dayPhase: DayPhase;
   energy: number;
   curiosity: number;
@@ -116,12 +136,9 @@ export const DEFAULT_PRESENCE_PROFILE: PresenceProfile = {
   memoryEnabled: true,
 };
 
-export const DEFAULT_PRESENCE_SETTINGS: PresenceSettings = {
-  cameraEnabled: false,
-  presenceMemoryEnabled: true,
-  initiativeEnabled: true,
-  localProcessingOnly: true,
-};
+import { DEFAULT_PRESENCE_V4 } from './presenceConfig';
+
+export const DEFAULT_PRESENCE_SETTINGS: PresenceSettings = { ...DEFAULT_PRESENCE_V4 };
 
 export const EMPTY_MICRO_ANIM: MicroAnimChannels = {
   animId: 'neutral',

@@ -6,3 +6,8 @@ export * from './MoodEngine';
 export * from './MicroAnimationLibrary';
 export * from './PresenceMemory';
 export * from './InitiativeEngine';
+export * from './EyeContactEngine';
+export * from './MoodBlendEngine';
+export * from './GreetingEngine';
+export * from './CameraTracking';
+export * from './presenceConfig';

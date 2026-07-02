@@ -2,6 +2,7 @@ export interface FaceTrackResult {
   faceDetected: boolean;
   faceX: number;
   faceY: number;
+  faceScale: number;
   landmarks?: { x: number; y: number; z?: number }[];
 }
 
@@ -63,7 +64,7 @@ export class MediaPipeFaceTracker {
       const result = this.landmarker.detectForVideo(video, timestampMs);
       const landmarks = result.faceLandmarks?.[0];
       if (!landmarks?.length) {
-        return { faceDetected: false, faceX: 0, faceY: 0 };
+        return { faceDetected: false, faceX: 0, faceY: 0, faceScale: 0.5 };
       }
 
       // Nose tip + eye centers for gaze offset
@@ -83,10 +84,15 @@ export class MediaPipeFaceTracker {
       const rawX = ((nose.x - cx) / Math.max(0.08, (maxX - minX) / 2)) * 0.5;
       const rawY = ((nose.y - cy) / Math.max(0.08, (maxY - minY) / 2)) * 0.5;
 
+      const faceW = maxX - minX;
+      const faceH = maxY - minY;
+      const faceScale = Math.max(0.15, Math.min(1, (faceW + faceH) * 0.9));
+
       return {
         faceDetected: true,
         faceX: Math.max(-MAX_GAZE, Math.min(MAX_GAZE, rawX)),
         faceY: Math.max(-MAX_GAZE * 0.7, Math.min(MAX_GAZE * 0.7, rawY)),
+        faceScale,
         landmarks: landmarks.map((p) => ({ x: p.x, y: p.y, z: p.z })),
       };
     } catch (err) {

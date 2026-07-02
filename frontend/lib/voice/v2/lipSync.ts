@@ -88,6 +88,15 @@ export class LipSyncEngine {
     this.jitter = 0;
   }
 
+  /** Smooth return to neutral mouth after speaking */
+  decay(dt: number) {
+    if (this.text) return;
+    this.phase = Math.max(0, this.phase - dt * 0.004);
+    if (this.jitter !== 0) this.jitter *= 0.9;
+    if (Math.abs(this.jitter) < 0.01) this.jitter = 0;
+    this.viseme = 'neutral';
+  }
+
   getViseme() {
     return this.viseme;
   }
