@@ -1,22 +1,26 @@
 import { useVoicePipeline } from '@/context/VoicePipelineContext';
 import { cn } from '@/lib/utils';
 
-const phaseLabel = {
+const phaseLabel: Record<string, string> = {
   idle: 'Klaar',
   listening: 'Luisteren…',
-  thinking: 'Denken…',
+  thinking: 'Nadenken…',
+  generating: 'Nadenken…',
   speaking: 'Spreken…',
 };
 
 export default function HomeVoiceStatus() {
-  const { phase, interimText, finalText, error } = useVoicePipeline();
-  const display = interimText || (phase === 'speaking' ? finalText : '');
+  const { phase, interimText, finalText, error, thinkingSnapshot } = useVoicePipeline();
+  const display =
+    interimText ||
+    (phase === 'speaking' ? finalText : '') ||
+    (phase === 'thinking' || phase === 'generating' ? thinkingSnapshot.preface : '');
 
   if (!display && phase === 'idle' && !error) return null;
 
   return (
     <div className="absolute bottom-[18%] left-0 right-0 z-20 px-6 pointer-events-none">
-      {phase !== 'idle' && (
+      {(phase === 'listening' || phase === 'thinking' || phase === 'generating' || phase === 'speaking') && (
         <p className="text-center text-[10px] uppercase tracking-widest text-nova-cyan/70 mb-2">
           {phaseLabel[phase]}
         </p>

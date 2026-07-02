@@ -25,9 +25,9 @@ export class VoiceEngine {
     if (voice.isThinking) {
       return {
         state: 'thinking',
-        mouthOpen: 0.05,
-        eyeScaleBoost: 0,
-        browRaise: 0.15,
+        mouthOpen: 0,
+        eyeScaleBoost: 0.04,
+        browRaise: 0.12,
       };
     }
 

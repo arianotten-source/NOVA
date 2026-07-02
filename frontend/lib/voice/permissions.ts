@@ -1,12 +1,18 @@
+import { acquireMicStream, releaseMicStream } from './micStream';
+
 export type PermissionResult = 'granted' | 'denied' | 'unsupported' | 'prompt';
 
 export async function requestMicrophonePermission(): Promise<PermissionResult> {
   if (!navigator.mediaDevices?.getUserMedia) return 'unsupported';
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach((t) => t.stop());
+    const stream = await acquireMicStream();
+    if (!stream.active) {
+      releaseMicStream();
+      return 'denied';
+    }
     return 'granted';
   } catch (err) {
+    releaseMicStream();
     const name = (err as DOMException)?.name;
     if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return 'denied';
     return 'denied';

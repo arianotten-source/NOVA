@@ -50,12 +50,13 @@ export const ANIMATION_CLIPS: Record<string, AnimationClip> = {
   },
   thinking: {
     id: 'thinking',
-    durationMs: 2500,
+    durationMs: 3200,
     loop: true,
     keyframes: [
-      { t: 0, eyeOffsetY: -4, glowPulse: 0.2 },
-      { t: 0.5, eyeOffsetY: -6, glowPulse: 0.45 },
-      { t: 1, eyeOffsetY: -4, glowPulse: 0.2 },
+      { t: 0, eyeOffsetY: -3, glowPulse: 0.22, smileAmount: 0.05 },
+      { t: 0.35, eyeOffsetY: -5, glowPulse: 0.38, smileAmount: 0.08 },
+      { t: 0.7, eyeOffsetY: -2, glowPulse: 0.28, smileAmount: 0.04 },
+      { t: 1, eyeOffsetY: -3, glowPulse: 0.22, smileAmount: 0.05 },
     ],
   },
   listening: {

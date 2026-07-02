@@ -8,7 +8,8 @@ export default function HomeMic() {
   const { phase, micSupported, toggleListening } = useVoicePipeline();
 
   const isListening = phase === 'listening';
-  const disabled = phase === 'thinking' || phase === 'speaking';
+  const isThinking = phase === 'thinking' || phase === 'generating';
+  const disabled = phase === 'speaking';
 
   if (!client || !micSupported) return null;
 
@@ -24,14 +25,18 @@ export default function HomeMic() {
           disabled && 'opacity-40 pointer-events-none',
           isListening
             ? 'border-nova-cyan shadow-[0_0_28px_rgba(0,255,245,0.3)]'
-            : 'border-nova-border/50 text-nova-muted'
+            : isThinking
+              ? 'border-amber-400/60 shadow-[0_0_20px_rgba(251,191,36,0.2)]'
+              : 'border-nova-border/50 text-nova-muted'
         )}
-        aria-label={isListening ? 'Stop luisteren' : 'Start luisteren'}
+        aria-label={
+          isListening ? 'Stop luisteren' : isThinking ? 'Onderbreek en spreek opnieuw' : 'Start luisteren'
+        }
       >
         {disabled ? (
           <MicOff className="w-6 h-6 text-nova-muted" />
         ) : (
-          <Mic className={cn('w-6 h-6', isListening ? 'text-nova-cyan' : '')} />
+          <Mic className={cn('w-6 h-6', isListening ? 'text-nova-cyan' : isThinking ? 'text-amber-300' : '')} />
         )}
       </button>
     </div>

@@ -194,6 +194,7 @@ export class PresenceEngine {
 
   private computeAttention(input: PresenceInput): number {
     if (input.voice.isListening) return 0.9;
+    if (input.voice.isThinking) return 0.82;
     if (input.voice.isSpeaking) return 0.85;
     if (input.camera.userLooking) return 0.75;
     if (this.mode === 'sleeping') return 0.15;
@@ -235,16 +236,24 @@ export class PresenceEngine {
       const pool =
         this.mode === 'sleeping'
           ? getAnimationsByCategory('blink')
-          : voice.isListening
-            ? getAnimationsByCategory('gaze')
-            : curiosity > 0.5
-              ? [...getAnimationsByCategory('react'), ...getAnimationsByCategory('gaze')]
-              : MICRO_ANIMATION_LIBRARY;
+          : voice.isThinking
+            ? [
+                ...getAnimationsByCategory('think'),
+                ...getAnimationsByCategory('gaze'),
+                ...getAnimationsByCategory('blink'),
+                ...getAnimationsByCategory('breath'),
+              ]
+            : voice.isListening
+              ? getAnimationsByCategory('gaze')
+              : curiosity > 0.5
+                ? [...getAnimationsByCategory('react'), ...getAnimationsByCategory('gaze')]
+                : MICRO_ANIMATION_LIBRARY;
 
       this.currentAnim = pickWeightedAnimation(pool.length ? pool : MICRO_ANIMATION_LIBRARY, new Set([this.lastAnimId]));
       this.lastAnimId = this.currentAnim.id;
       this.animStartedAt = now;
-      this.nextAnimAt = now + this.currentAnim.durationMs + (4000 + Math.random() * 8000) / (energy + 0.3);
+      const thinkMul = voice.isThinking ? 0.35 : 1;
+      this.nextAnimAt = now + (this.currentAnim.durationMs + (voice.isThinking ? 1200 + Math.random() * 1800 : 4000 + Math.random() * 8000) / (energy + 0.3)) * thinkMul;
     }
 
     const progress = (now - this.animStartedAt) / this.currentAnim.durationMs;
@@ -281,7 +290,7 @@ export class PresenceEngine {
     }
 
     channels.floatY += Math.sin(now / 2200) * 1.5 * energy;
-    channels.glowIntensity = 0.08 + energy * 0.12 + (voice.isListening ? 0.08 : 0);
+    channels.glowIntensity = 0.08 + energy * 0.12 + (voice.isListening ? 0.08 : 0) + (voice.isThinking ? 0.1 : 0);
 
     return { ...EMPTY_MICRO_ANIM, ...channels, animId: this.currentAnim.id };
   }

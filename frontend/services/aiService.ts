@@ -24,12 +24,26 @@ function getLocalResponse(input: string): string {
 
 const API_BASE = import.meta.env.DEV ? '' : '';
 
-export async function sendAiMessage(text: string): Promise<{ reply: string; connected: boolean }> {
+export interface AiMessageOptions {
+  signal?: AbortSignal;
+}
+
+export interface AiMessageResult {
+  reply: string;
+  connected: boolean;
+  latencyMs: number;
+}
+
+export async function sendAiMessage(text: string, options: AiMessageOptions = {}): Promise<AiMessageResult> {
+  const started = performance.now();
   voiceLog.emit('AI request verzonden', text.slice(0, 80));
 
   try {
     const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 8000);
+    const timer = window.setTimeout(() => controller.abort(), 12000);
+    if (options.signal) {
+      options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
     const res = await fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -42,14 +56,15 @@ export async function sendAiMessage(text: string): Promise<{ reply: string; conn
       const data = (await res.json()) as { reply?: string };
       if (data.reply) {
         voiceLog.emit('AI antwoord ontvangen');
-        return { reply: data.reply, connected: true };
+        return { reply: data.reply, connected: true, latencyMs: Math.round(performance.now() - started) };
       }
     }
-  } catch {
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') throw err;
     /* local fallback */
   }
 
   const reply = getLocalResponse(text);
   voiceLog.emit('AI antwoord ontvangen', '(lokaal)');
-  return { reply, connected: false };
+  return { reply, connected: false, latencyMs: Math.round(performance.now() - started) };
 }

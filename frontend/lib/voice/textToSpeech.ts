@@ -1,4 +1,5 @@
 import { voiceLog } from './voiceLogger';
+import { setSpeaking } from './voiceState';
 
 function pickVoice(lang = 'nl-NL'): SpeechSynthesisVoice | null {
   const voices = speechSynthesis.getVoices();
@@ -23,38 +24,49 @@ export function warmUpTts(): void {
 export function stopSpeaking(): void {
   if (!isTtsSupported()) return;
   speechSynthesis.cancel();
+  setSpeaking(false);
 }
 
 export function speakText(
   text: string,
-  handlers?: { onStart?: () => void; onEnd?: () => void; onError?: (err: string) => void }
+  handlers?: {
+    onStart?: () => void;
+    onEnd?: () => void;
+    onError?: (err: string) => void;
+    rate?: number;
+    pitch?: number;
+  }
 ): Promise<void> {
   return new Promise((resolve) => {
     if (!isTtsSupported() || !text.trim()) {
+      setSpeaking(false);
       handlers?.onEnd?.();
       resolve();
       return;
     }
 
     stopSpeaking();
+    setSpeaking(true);
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'nl-NL';
     const voice = pickVoice();
     if (voice) utterance.voice = voice;
-    utterance.rate = 1;
-    utterance.pitch = 1;
+    utterance.rate = handlers?.rate ?? 1;
+    utterance.pitch = handlers?.pitch ?? 1;
 
     let ended = false;
     const finish = () => {
       if (ended) return;
       ended = true;
+      setSpeaking(false);
       voiceLog.emit('TTS voltooid');
       handlers?.onEnd?.();
       resolve();
     };
 
     utterance.onstart = () => {
+      setSpeaking(true);
       voiceLog.emit('TTS gestart');
       handlers?.onStart?.();
     };

@@ -15,7 +15,7 @@ const MOUTH_IDS = ['smirk_left', 'smirk_right', 'soft_smile', 'pout', 'open_slig
 const BLINK_IDS = ['slow_blink', 'double_blink', 'half_blink', 'flutter'];
 const GAZE_IDS = ['glance_left', 'glance_right', 'scan', 'focus', 'drift'];
 const BREATH_IDS = ['inhale', 'exhale', 'sigh_soft', 'sigh_deep'];
-const THINK_IDS = ['ponder', 'consider', 'hmm', 'realize'];
+const THINK_IDS = ['ponder', 'consider', 'hmm', 'realize', 'style_a', 'style_b', 'style_c', 'style_d', 'style_e'];
 const REACT_IDS = ['surprise_micro', 'doubt', 'agree_nod', 'curious_peek', 'warmth'];
 
 function wave(t: number, freq = 1, amp = 1) {
@@ -137,17 +137,51 @@ function makeBreathAnim(id: string, kind: string): MicroAnimationDef {
 }
 
 function makeThinkAnim(id: string): MicroAnimationDef {
-  return {
-    id: `think_${id}`,
-    category: 'think',
-    durationMs: 1800,
-    weight: 0.85,
-    sample: (t) => ({
+  const styleSamples: Record<string, (t: number) => Partial<MicroAnimChannels>> = {
+    ponder: (t) => ({
       lookY: -4 * ease(t),
       browRightY: -4 * ease(t),
       browLeftY: -1 * ease(t),
       glowIntensity: 0.14 + 0.1 * ease(t),
     }),
+    consider: (t) => ({
+      lookX: -3 * ease(t),
+      pupilScale: 1.04,
+      glowIntensity: 0.12,
+    }),
+    hmm: (t) => ({
+      lookY: -2 * ease(t),
+      browLeftY: -3 * ease(t),
+      mouthCornerLeft: 0.06 * ease(t),
+    }),
+    realize: (t) => ({
+      lookY: -3 * ease(t),
+      eyeOpenLeft: 1 + 0.08 * ease(t),
+      eyeOpenRight: 1 + 0.08 * ease(t),
+      glowIntensity: 0.2,
+    }),
+    style_a: (t) => ({ lookY: -5 * ease(t), mouthCornerLeft: 0.1 * ease(t), mouthCornerRight: 0.1 * ease(t) }),
+    style_b: (t) => ({ lookX: -4 * ease(t), pupilScale: 1.05 + wave(t, 0.6, 0.04) }),
+    style_c: (t) => ({ lookX: 4 * ease(t), browRightY: -5 * ease(t) }),
+    style_d: (t) => ({
+      eyeOpenLeft: t < 0.3 ? 1 - ease(t / 0.3) * 0.85 : 0.2 + ease((t - 0.3) / 0.7) * 0.8,
+      eyeOpenRight: t < 0.3 ? 1 - ease(t / 0.3) * 0.85 : 0.2 + ease((t - 0.3) / 0.7) * 0.8,
+      lookX: t > 0.5 ? -2 * ease(t) : 0,
+    }),
+    style_e: (t) => ({
+      lookX: wave(t, 0.4, 3),
+      lookY: -2 * ease(t) + wave(t, 0.35, 1.5),
+      floatY: wave(t, 0.5, 1.5),
+      glowIntensity: 0.12 + 0.06 * ease(t),
+    }),
+  };
+
+  return {
+    id: `think_${id}`,
+    category: 'think',
+    durationMs: 2000 + Math.random() * 800,
+    weight: 0.9,
+    sample: styleSamples[id] ?? styleSamples.ponder,
   };
 }
 

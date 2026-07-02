@@ -2,11 +2,16 @@ export type VoiceLogEvent =
   | 'Microfoon gestart'
   | 'Spraak ontvangen'
   | 'Transcript voltooid'
+  | 'Vraag ontvangen'
+  | 'Thinking gestart'
+  | 'Thinking voltooid'
   | 'AI request verzonden'
   | 'AI antwoord ontvangen'
   | 'TTS gestart'
   | 'TTS voltooid'
-  | 'Microfoon gestopt'
+  | 'STT gestart'
+  | 'STT gestopt'
+  | 'Interruptie'
   | 'Fout';
 
 type Listener = (event: VoiceLogEvent, detail?: string) => void;
